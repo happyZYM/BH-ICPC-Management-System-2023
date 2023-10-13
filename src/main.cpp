@@ -122,6 +122,7 @@ std::unordered_map<std::string, int> team_name_to_id;
 std::vector<std::string> team_id_to_name = {"nobody"};
 enum CompetitionStatusType { kNotStarted, kNormalRunning, kBlocked, kEnded };
 enum SubmissionStatusType { kAC = 0, kWA = 1, kRE = 2, kTLE = 3 };
+std::string StatusType2Text[4]={"Accepted","Wrong_Answer","Runtime_Error","Time_Limit_Exceed"};
 enum CommandType {
   kADDTEAM,
   kSTART,
@@ -157,9 +158,11 @@ struct SubmissionType {
   bool synced_to_score_board = false;
   SubmissionStatusType status;
   int submit_time;
+  char problem_name;
   SubmissionType() {}
-  SubmissionType(SubmissionStatusType status, int submit_time)
-      : status(status), submit_time(submit_time) {}
+  SubmissionType(SubmissionStatusType status, int submit_time,
+                 char problem_name)
+      : status(status), submit_time(submit_time), problem_name(problem_name) {}
 };
 /**
  * @brief the definition of struct RawTeamDataType
@@ -221,14 +224,14 @@ std::set<ScoreBoredElementType> score_board;
  * @param team_name the name of the team to be added.
  */
 void AddTeam(const char *const team_name) {
-  /*check if the name is duplicated*/
-  if (team_name_to_id.find(team_name) != team_name_to_id.end()) {
-    write("[Error]Add failed: duplicated team name.\n");
-    return;
-  }
   /*check if the competition has started*/
   if (competition_status != kNotStarted) {
     write("[Error]Add failed: competition has started.\n");
+    return;
+  }
+  /*check if the name is duplicated*/
+  if (team_name_to_id.find(team_name) != team_name_to_id.end()) {
+    write("[Error]Add failed: duplicated team name.\n");
     return;
   }
   team_number++;
@@ -244,7 +247,7 @@ void AddTeam(const char *const team_name) {
     for (int j = 0; j < 4; j++)
       team_data[team_number].query_problem_status_index[i][j] = -1;
   }
-  write("[Info]Team added.\n");
+  write("[Info]Add successfully.\n");
 }
 void StartCompetition(int duration_time, int problem_count) {
   if (competition_status != kNotStarted) {
@@ -268,7 +271,7 @@ inline void Submit(char problem_name, char *team_name,
                    const char *submit_status, int time) {
   int team_id = team_name_to_id[team_name];
   SubmissionStatusType status = SubmitStatusParser[submit_status];
-  SubmissionType record = SubmissionType(status, time);
+  SubmissionType record = SubmissionType(status, time, problem_name);
   team_data[team_id].submissions.push_back(record);
   team_data[team_id].query_problem_index[problem_name - 'A'] =
       team_data[team_id].submissions.size() - 1;
@@ -427,7 +430,57 @@ void QueryRanking(char *team_name) {
         team_data[team_name_to_id[team_name]].rank, "\n");
 }
 void QuerySubmission(char *team_name, char *problem_name, char *submit_status) {
-  ;
+  if (team_name_to_id.find(team_name) == team_name_to_id.end()) {
+    write("[Error]Query submission failed: cannot find the team.\n");
+    return;
+  }
+  write("[Info]Complete query submission.\n");
+  bool found=false;
+  SubmissionType res;
+  int tid=team_name_to_id[team_name];
+  if(!found)
+  {
+    write("Cannot find any submission.\n");
+    return;
+  }
+  if(strcmp(problem_name,"ALL")==0)
+  {
+    if(strcmp(submit_status,"ALL")==0)
+    {
+      if(team_data[tid].submissions.size()>0)
+      {
+        res=team_data[tid].submissions[team_data[tid].submissions.size()-1];
+        found=true;
+      }
+    }
+    else
+    {
+      if(team_data[tid].query_status_index[SubmitStatusParser[submit_status]]!=-1)
+      {
+        res=team_data[tid].submissions[team_data[tid].query_status_index[SubmitStatusParser[submit_status]]];
+        found=true;
+      }
+    }
+  }
+  else{
+    if(strcmp(submit_status,"ALL")==0)
+    {
+      if(team_data[tid].query_problem_index[problem_name[0]-'A']!=-1)
+      {
+        res=team_data[tid].submissions[team_data[tid].query_problem_index[problem_name[0]-'A']];
+        found=true;
+      }
+    }
+    else
+    {
+      if(team_data[tid].query_problem_status_index[problem_name[0]-'A'][SubmitStatusParser[submit_status]]!=-1)
+      {
+        res=team_data[tid].submissions[team_data[tid].query_problem_status_index[problem_name[0]-'A'][SubmitStatusParser[submit_status]]];
+        found=true;
+      }
+    }
+  }
+  write(team_name,' ',res.problem_name,' ',StatusType2Text[res.status].c_str(),' ',res.submit_time,"\n");
 }
 }  // namespace BackEnd
 
