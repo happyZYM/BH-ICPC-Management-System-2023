@@ -110,6 +110,7 @@ template<typename A_t,typename B_t,typename C_t,typename D_t> inline void write(
 #include <vector>
 static_assert(sizeof(int) == 4, "Expect int as a 32-bit integer.");
 static_assert(sizeof(long long) == 8, "Expect long long as a 64-bit integer.");
+const char *current_command;  // only for debug
 namespace ICPCManager {
 namespace BackEnd {
 /**
@@ -184,6 +185,7 @@ struct RawTeamDataType {
                              kIntInf, kIntInf, kIntInf, kIntInf, kIntInf,
                              kIntInf};
   int try_times_before_pass[26] = {0};
+  int submissions_during_block[26] = {0};
   std::vector<SubmissionType> submissions;
   RawTeamDataType() { ; }
 };
@@ -276,6 +278,7 @@ inline void Submit(char problem_name, char *team_name,
   if (team_data[team_id].already_passed_before_block[problem_name - 'A'] == 0 &&
       competition_status == kBlocked) {
     team_data[team_id].is_frozen[problem_name - 'A'] = true;
+    team_data[team_id].submissions_during_block[problem_name - 'A']++;
   }
   switch (status) {
     case kAC: {
@@ -328,7 +331,19 @@ void FreezeScoreBoard() {
   write("[Info]Freeze scoreboard.\n");
 }
 void ScrollScoreBoard() { ; }
-void QueryRanking(char *team_name) { ; }
+void QueryRanking(char *team_name) {
+  if (team_name_to_id.find(team_name) == team_name_to_id.end()) {
+    write("[Error]Query ranking failed: cannot find the team.\n");
+    return;
+  }
+  write("[Info]Complete query ranking.\n");
+  if (competition_status == kBlocked)
+    write(
+        "[Warning]Scoreboard is frozen. The ranking may be inaccurate until it "
+        "were scrolled.\n");
+  write(team_name, " NOW AT RANKING ",
+        team_data[team_name_to_id[team_name]].rank, "\n");
+}
 void QuerySubmission(char *team_name, char *problem_name, char *submit_status) {
   ;
 }
@@ -363,6 +378,15 @@ inline void Submit(char problem_name, char *team_name, char *submit_status,
                    int time) {
   if (BackEnd::competition_status == BackEnd::kNotStarted)
     throw "Competition hasn't started yet.";
+  if (ICPCManager::BackEnd::team_name_to_id.find(team_name) ==
+      ICPCManager::BackEnd::team_name_to_id.end()) {
+    char *str = new char[1000];
+    sprintf(str,
+            "Team not found when excuting SUBMIT %c BY %s WITH %s AT "
+            "%d\ncurrent command is [%s]\n",
+            problem_name, team_name, submit_status, time, current_command);
+    throw str;
+  }
   BackEnd::Submit(problem_name, team_name, submit_status, time);
 }
 inline void FlushScoreBoard() {
@@ -409,6 +433,7 @@ void EndContest() {
  */
 inline void Excute(const char *const command) {
   char command_name[1024];
+  current_command = command;
   sscanf(command, "%s", command_name);
   ICPCManager::BackEnd::CommandType command_type =
       ICPCManager::BackEnd::CommandParser[command_name];
@@ -428,13 +453,15 @@ inline void Excute(const char *const command) {
       break;
     }
     case ICPCManager::BackEnd::kSUBMIT: {
-      char problem_name;
+      char problem_name[10];
       char team_name[100];
-      char submit_status[10];
+      char submit_status[20];
       int time;
-      sscanf(command, "%*s%c%*s%s%*s%s%*s%d", &problem_name, team_name,
+      sscanf(command, "%*s%s%*s%s%*s%s%*s%d", problem_name, team_name,
              submit_status, &time);
-      ICPCManager::API::Submit(problem_name, team_name, submit_status, time);
+      fprintf(stderr,"command=%s\n",command);
+      fprintf(stderr,"tname=%s\n",team_name);
+      ICPCManager::API::Submit(problem_name[0], team_name, submit_status, time);
       break;
     }
     case ICPCManager::BackEnd::kFLUSH: {
@@ -460,7 +487,7 @@ inline void Excute(const char *const command) {
     case ICPCManager::BackEnd::kQUERY_SUBMISSION: {
       char team_name[100];
       char problem_name[10];
-      char status[10];
+      char status[20];
       sscanf(command, "%*s%s%*s%*s%s%*s%*s%s", team_name, problem_name, status);
       ICPCManager::API::QuerySubmission(team_name, problem_name, status);
       break;
