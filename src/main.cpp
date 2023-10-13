@@ -169,7 +169,7 @@ struct RawTeamDataType {
   std::string name;
   int id;
   int rank;
-  std::set<int, std::greater<int>> unfreeze_pass_time;
+  std::set<int, std::greater<int>> pass_time_before_freeze;
   int query_status_index[4], query_problem_index[26],
       query_problem_status_index[26][4];
   // as index in submissions are 0 based, so we use -1 to indicate that the team
@@ -201,10 +201,10 @@ inline bool operator<(const ScoreBoredElementType &a,
                       const ScoreBoredElementType &b) {
   if (a.score != b.score) return a.score > b.score;
   if (a.penalty != b.penalty) return a.penalty < b.penalty;
-  for (auto ita = team_data[a.tid].unfreeze_pass_time.begin(),
-            itb = team_data[b.tid].unfreeze_pass_time.begin();
-       ita != team_data[a.tid].unfreeze_pass_time.end() &&
-       itb != team_data[b.tid].unfreeze_pass_time.end();
+  for (auto ita = team_data[a.tid].pass_time_before_freeze.begin(),
+            itb = team_data[b.tid].pass_time_before_freeze.begin();
+       ita != team_data[a.tid].pass_time_before_freeze.end() &&
+       itb != team_data[b.tid].pass_time_before_freeze.end();
        ++ita, ++itb) {
     if (*ita != *itb) return *ita < *itb;
   }
@@ -283,9 +283,11 @@ inline void Submit(char problem_name, char *team_name,
         team_data[team_id].first_pass_time[problem_name - 'A'] = time;
       }
       team_data[team_id].already_passed[problem_name - 'A'] = true;
-      if (competition_status == kNormalRunning)
+      if (competition_status == kNormalRunning) {
         team_data[team_id].already_passed_before_block[problem_name - 'A'] =
             true;
+        team_data[team_id].pass_time_before_freeze.insert(time);
+      }
       break;
     }
     case kRE:
@@ -298,11 +300,36 @@ inline void Submit(char problem_name, char *team_name,
     }
   }
 }
-void FlushScoreBoard() { ; }
-void FreezeScoreBoard() { competition_status = kBlocked; }
+void FlushScoreBoard() {
+  score_board.clear();
+  for (int i = 1; i <= team_number; i++) {
+    int score = 0, penalty = 0;
+    for (int j = 0; j < total_number_of_problems; j++) {
+      if (team_data[i].already_passed_before_block[j]) {
+        penalty += team_data[i].first_pass_time[j] +
+                   team_data[i].try_times_before_pass[j] * 20;
+        score++;
+      }
+    }
+    score_board.insert(ScoreBoredElementType(i, score, penalty));
+  }
+  int cnt = 0;
+  for (auto it = score_board.begin(); it != score_board.end(); ++it) {
+    team_data[it->tid].rank = ++cnt;
+  }
+  write("[Info]Flush scoreboard.\n");
+}
+void FreezeScoreBoard() {
+  if (competition_status == kBlocked) {
+    write("[Error]Freeze failed: scoreboard has been frozen.\n");
+    return;
+  }
+  competition_status = kBlocked;
+  write("[Info]Freeze scoreboard.\n");
+}
 void ScrollScoreBoard() { ; }
 void QueryRanking(char *team_name) { ; }
-void QuerySubmission(char *team_name, char problem_name, char *submit_status) {
+void QuerySubmission(char *team_name, char *problem_name, char *submit_status) {
   ;
 }
 }  // namespace BackEnd
@@ -361,7 +388,7 @@ inline void QueryRanking(char *team_name) {
     throw "Competition hasn't started yet.";
   ICPCManager::BackEnd::QueryRanking(team_name);
 }
-inline void QuerySubmission(char *team_name, char problem_name,
+inline void QuerySubmission(char *team_name, char *problem_name,
                             char *submit_status) {
   if (BackEnd::competition_status == BackEnd::kNotStarted)
     throw "Competition hasn't started yet.";
@@ -432,10 +459,9 @@ inline void Excute(const char *const command) {
     }
     case ICPCManager::BackEnd::kQUERY_SUBMISSION: {
       char team_name[100];
-      char problem_name;
+      char problem_name[10];
       char status[10];
-      sscanf(command, "%*s%s%*s%*s%c%*s%*s%s", team_name, &problem_name,
-             status);
+      sscanf(command, "%*s%s%*s%*s%s%*s%*s%s", team_name, problem_name, status);
       ICPCManager::API::QuerySubmission(team_name, problem_name, status);
       break;
     }
