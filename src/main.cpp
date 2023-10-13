@@ -105,32 +105,68 @@ template<typename A_t,typename B_t,typename C_t,typename D_t> inline void write(
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <set>
 #include <string>
 #include <unordered_map>
 #include <vector>
-static_assert(sizeof(int) == 4, "Expected 32-bit integer.");
-static_assert(sizeof(long long) == 8, "Expected 64-bit integer.");
+static_assert(sizeof(int) == 4, "Expect int as a 32-bit integer.");
+static_assert(sizeof(long long) == 8, "Expect long long as a 64-bit integer.");
 namespace ICPCManager {
 namespace BackEnd {
+/**
+ * Note that the team id is 1-based. The problem id is 0-based.
+ */
 const int kMaxTeamNumber = 10005;
 std::unordered_map<std::string, int> team_name_to_id;
 std::vector<std::string> team_id_to_name = {"nobody"};
 int team_number = 0;
-bool competition_on = false;
+enum CompetitionStatusType { kNotStarted, kNormalRunning, kFrozen, kEnded };
+enum SubmissionStatusType { kAC = 0, kWA = 1, kRE = 2, kTLE = 3 };
+CompetitionStatusType competition_status = kNotStarted;
+bool score_board_up_to_date = true;
+struct ScoreBoredElementType {
+  int tid;
+  std::string name;
+  int score;
+  int penalty;
+};
+inline bool operator<(const ScoreBoredElementType &a,
+                      const ScoreBoredElementType &b) {
+  ;
+}
+std::set<ScoreBoredElementType> score_board;
+/**
+ * @brief the definition of struct RawTeamDataType
+ *
+ * @details it stores the data of a team
+ */
+struct RawTeamDataType {
+  std::string name;
+  int id;
+  struct SubmissionType {
+    bool processed = false;
+    SubmissionStatusType status;
+    int submit_time;
+  };
+  int query_status_index[4], query_problem_index[26],
+      query_problem_status_index[26][4];
+  bool is_frozen[26] = {false};
+  std::vector<SubmissionStatusType> submissions;
+  RawTeamDataType() { ; }
+};
+std::vector<RawTeamDataType> team_data = {RawTeamDataType()};
 /**
  * @brief the definition of function AddTeam.
  * @param team_name the name of the team to be added.
  */
 void AddTeam(const char *const team_name) {
   /*check if the name is duplicated*/
-  if (team_name_to_id.find(team_name) != team_name_to_id.end())
-  {
+  if (team_name_to_id.find(team_name) != team_name_to_id.end()) {
     write("[Error]Add failed: duplicated team name.\n");
     return;
   }
   /*check if the competition has started*/
-  if (competition_on)
-  {
+  if (competition_status != kNotStarted) {
     write("[Error]Add failed: competition has started.\n");
     return;
   }
@@ -139,7 +175,16 @@ void AddTeam(const char *const team_name) {
   team_id_to_name.push_back(team_name);
   write("[Info]Team added.\n");
 }
+inline void FreezeScoreBoard() { competition_status = kFrozen; }
 }  // namespace BackEnd
+
+/**
+ * @brief the namespace API is used to provide APIs for the main program.
+ *
+ * @details the APIs will call the functions in BackEnd to do the real work.
+ * Then checking for unexpected error will be done here, thus the parameters
+ * given to the functions in BackEnd are always valid.
+ */
 namespace API {
 /**
  * @brief this function is used to add a team.
@@ -156,14 +201,22 @@ void AddTeam(const char *const team_name) {
   BackEnd::AddTeam(team_name);
 }
 /**
+ * @brief the definition of function FreezeScoreBoard
+ */
+inline void FreezeScoreBoard() { ICPCManager::BackEnd::FreezeScoreBoard(); }
+/**
  * @brief this function is used to end the contest.
  */
 void EndContest() {
   write("[Info]Competition ends.\n");
   exit(0);
 }
-}  // namespace API
-}  // namespace ICPCManager
+/**
+ * @brief the definition of function Excute.
+ *
+ * @details this function will analyze the command and call the corresponding
+ * function in API.
+ */
 inline void Excute(const char *const command) {
   char command_name[1024];
   sscanf(command, "%s", command_name);
@@ -172,9 +225,17 @@ inline void Excute(const char *const command) {
     sscanf(command, "%*s%s", team_name);
     ICPCManager::API::AddTeam(team_name);
   } else if (strcmp(command_name, "START") == 0) {  // start the contest
-    ;
+    int duration_time, problem_count, paramater_count;
+    paramater_count =
+        sscanf(command, "%*s%*s%d%*s%d", &duration_time, &problem_count);
+    if (paramater_count != 2) throw "Invalid paramaters.";
   } else if (strcmp(command_name, "SUBMIT") == 0) {  // submit a code
-    ;
+    char problem_name;
+    char team_name[100];
+    char submit_status[10];
+    int time;
+    sscanf(command, "%*s%c%*s%s%*s%s%*s%d", &problem_name, team_name,
+           submit_status, &time);
   } else if (strcmp(command_name, "FLUSH") == 0) {  // flush the
     ;
   } else if (strcmp(command_name, "FREEZE") == 0) {
@@ -182,21 +243,27 @@ inline void Excute(const char *const command) {
   } else if (strcmp(command_name, "SCROLL") == 0) {
     ;
   } else if (strcmp(command_name, "QUERY_RANKING") == 0) {
-    ;
+    char team_name[100];
+    sscanf(command, "%*s%s", team_name);
   } else if (strcmp(command_name, "QUERY_SUBMISSION") == 0) {
-    ;
+    char team_name[100];
+    char problem_name;
+    char status[10];
+    sscanf(command, "%*s%s%*s%*s%c%*s%*s%s", team_name, &problem_name, status);
   } else if (strcmp(command_name, "END") == 0)  // END
   {
     ICPCManager::API::EndContest();
   } else
     throw "Unknown command.";
 }
+}  // namespace API
+}  // namespace ICPCManager
 int main() {
   char command[1024];
   try {
     while (true) {
       readline(command);
-      Excute(command);
+      ICPCManager::API::Excute(command);
     }
   } catch (const char *msg) {
     fprintf(stderr, "\e[7m\e[31m[Unexpected Error] %s\e[0m\n", msg);
