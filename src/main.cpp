@@ -185,6 +185,7 @@ struct RawTeamDataType {
                              kIntInf, kIntInf, kIntInf, kIntInf, kIntInf,
                              kIntInf};
   int try_times_before_pass[26] = {0};
+  int try_times_before_pass_before_block[26] = {0};
   int submissions_during_block[26] = {0};
   std::vector<SubmissionType> submissions;
   RawTeamDataType() { ; }
@@ -298,6 +299,10 @@ inline void Submit(char problem_name, char *team_name,
     case kTLE: {
       if (team_data[team_id].already_passed[problem_name - 'A'] == false) {
         team_data[team_id].try_times_before_pass[problem_name - 'A']++;
+        if (competition_status != kBlocked) {
+          team_data[team_id]
+              .try_times_before_pass_before_block[problem_name - 'A']++;
+        }
       }
       break;
     }
@@ -330,7 +335,76 @@ void FreezeScoreBoard() {
   competition_status = kBlocked;
   write("[Info]Freeze scoreboard.\n");
 }
-void ScrollScoreBoard() { ; }
+void PrintScoreBoard() {
+  for (auto it = score_board.begin(); it != score_board.end(); ++it) {
+    write(team_data[it->tid].name.c_str());
+    write(' ', team_data[it->tid].rank);
+    write(' ', it->score);
+    write(' ', it->penalty);
+    for (int i = 0; i < total_number_of_problems; i++) {
+      write(' ');
+      if (team_data[it->tid].is_frozen[i] == false) {
+        if (team_data[it->tid].already_passed_before_block[i]) {
+          write('+');
+          if (team_data[it->tid].try_times_before_pass[i] > 0)
+            write(team_data[it->tid].try_times_before_pass[i]);
+        } else {
+          if (team_data[it->tid].try_times_before_pass[i] > 0) {
+            write('-', team_data[it->tid].try_times_before_pass[i]);
+          } else
+            write('.');
+        }
+      } else {
+        int x = team_data[it->tid].try_times_before_pass_before_block[i];
+        if (x != 0) write('-');
+        write(x, '/', team_data[it->tid].submissions_during_block[i]);
+      }
+    }
+    write('\n');
+  }
+}
+void ScrollScoreBoard() {
+  if (competition_status != kBlocked) {
+    write("[Error]Scroll failed: scoreboard has not been frozen.\n");
+    return;
+  }
+  write("[Info]Scroll scoreboard.\n");
+  PrintScoreBoard();
+  auto it = score_board.end();
+  --it;
+  while (true) {
+    auto nxt = it;
+    --nxt;
+    auto nval = *nxt;
+    for (int i = 0; i < total_number_of_problems; i++) {
+      if (team_data[it->tid].is_frozen[i]) {
+        team_data[it->tid].is_frozen[i] = false;
+        team_data[it->tid].already_passed_before_block[i] =
+            team_data[it->tid].already_passed[i];
+        team_data[it->tid].try_times_before_pass_before_block[i] =
+            team_data[it->tid].try_times_before_pass[i];
+        team_data[it->tid].submissions_during_block[i] = 0;
+        if (team_data[it->tid].first_pass_time[i] < kIntInf) {
+          int score = it->score + 1;
+          team_data[it->tid].pass_time_before_freeze.insert(
+              team_data[it->tid].first_pass_time[i]);
+          int penalty = it->penalty + team_data[it->tid].first_pass_time[i] +
+                        20 * team_data[it->tid].try_times_before_pass[i];
+          score_board.erase(it);
+          score_board.insert(ScoreBoredElementType(it->tid, score, penalty));
+        }
+        it=score_board.find(nval);
+        if(it==score_board.end()) goto finish_scroll;
+        goto next_round;
+      }
+    }
+    it = nxt;
+  next_round:;
+  }
+  finish_scroll:;
+  competition_status = kNormalRunning;
+  PrintScoreBoard();
+}
 void QueryRanking(char *team_name) {
   if (team_name_to_id.find(team_name) == team_name_to_id.end()) {
     write("[Error]Query ranking failed: cannot find the team.\n");
@@ -459,8 +533,6 @@ inline void Excute(const char *const command) {
       int time;
       sscanf(command, "%*s%s%*s%s%*s%s%*s%d", problem_name, team_name,
              submit_status, &time);
-      fprintf(stderr,"command=%s\n",command);
-      fprintf(stderr,"tname=%s\n",team_name);
       ICPCManager::API::Submit(problem_name[0], team_name, submit_status, time);
       break;
     }
