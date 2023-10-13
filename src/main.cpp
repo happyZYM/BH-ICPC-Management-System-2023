@@ -308,7 +308,7 @@ inline void Submit(char problem_name, char *team_name,
     }
   }
 }
-void FlushScoreBoard() {
+void FlushScoreBoard(bool show_info=true) {
   score_board.clear();
   for (int i = 1; i <= team_number; i++) {
     int score = 0, penalty = 0;
@@ -325,7 +325,7 @@ void FlushScoreBoard() {
   for (auto it = score_board.begin(); it != score_board.end(); ++it) {
     team_data[it->tid].rank = ++cnt;
   }
-  write("[Info]Flush scoreboard.\n");
+  if(show_info) write("[Info]Flush scoreboard.\n");
 }
 void FreezeScoreBoard() {
   if (competition_status == kBlocked) {
@@ -369,15 +369,21 @@ void ScrollScoreBoard() {
     return;
   }
   write("[Info]Scroll scoreboard.\n");
+  FlushScoreBoard(false);
   PrintScoreBoard();
   auto it = score_board.end();
   --it;
   while (true) {
     auto nxt = it;
+    bool is_first = false;
+    bool frozen_found = false;
+    if (it == score_board.begin()) is_first = true;
     --nxt;
     auto nval = *nxt;
+    // fprintf(stderr,"%d\n",it->tid);
     for (int i = 0; i < total_number_of_problems; i++) {
       if (team_data[it->tid].is_frozen[i]) {
+        frozen_found = true;
         team_data[it->tid].is_frozen[i] = false;
         team_data[it->tid].already_passed_before_block[i] =
             team_data[it->tid].already_passed[i];
@@ -393,16 +399,18 @@ void ScrollScoreBoard() {
           score_board.erase(it);
           score_board.insert(ScoreBoredElementType(it->tid, score, penalty));
         }
-        it=score_board.find(nval);
-        if(it==score_board.end()) goto finish_scroll;
+        it = score_board.find(nval);
+        if (it == score_board.end()) goto finish_scroll;
         goto next_round;
       }
     }
     it = nxt;
   next_round:;
+    if (is_first && !frozen_found) break;
   }
-  finish_scroll:;
+finish_scroll:;
   competition_status = kNormalRunning;
+  FlushScoreBoard(false);
   PrintScoreBoard();
 }
 void QueryRanking(char *team_name) {
