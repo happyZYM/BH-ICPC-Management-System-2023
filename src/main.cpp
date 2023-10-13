@@ -122,7 +122,8 @@ std::unordered_map<std::string, int> team_name_to_id;
 std::vector<std::string> team_id_to_name = {"nobody"};
 enum CompetitionStatusType { kNotStarted, kNormalRunning, kBlocked, kEnded };
 enum SubmissionStatusType { kAC = 0, kWA = 1, kRE = 2, kTLE = 3 };
-std::string StatusType2Text[4]={"Accepted","Wrong_Answer","Runtime_Error","Time_Limit_Exceed"};
+std::string StatusType2Text[4] = {"Accepted", "Wrong_Answer", "Runtime_Error",
+                                  "Time_Limit_Exceed"};
 enum CommandType {
   kADDTEAM,
   kSTART,
@@ -214,8 +215,8 @@ inline bool operator<(const ScoreBoredElementType &a,
        ++ita, ++itb) {
     if (*ita != *itb) return *ita < *itb;
   }
-  if (team_data[a.tid].name == team_data[b.tid].name)
-    throw "teams in score bored should have distinctive names!";
+  // if (team_data[a.tid].name == team_data[b.tid].name)
+  // throw "teams in score bored should have distinctive names!";
   return team_data[a.tid].name < team_data[b.tid].name;
 }
 std::set<ScoreBoredElementType> score_board;
@@ -311,7 +312,7 @@ inline void Submit(char problem_name, char *team_name,
     }
   }
 }
-void FlushScoreBoard(bool show_info=true) {
+void FlushScoreBoard(bool show_info = true) {
   score_board.clear();
   for (int i = 1; i <= team_number; i++) {
     int score = 0, penalty = 0;
@@ -328,7 +329,7 @@ void FlushScoreBoard(bool show_info=true) {
   for (auto it = score_board.begin(); it != score_board.end(); ++it) {
     team_data[it->tid].rank = ++cnt;
   }
-  if(show_info) write("[Info]Flush scoreboard.\n");
+  if (show_info) write("[Info]Flush scoreboard.\n");
 }
 void FreezeScoreBoard() {
   if (competition_status == kBlocked) {
@@ -399,8 +400,17 @@ void ScrollScoreBoard() {
               team_data[it->tid].first_pass_time[i]);
           int penalty = it->penalty + team_data[it->tid].first_pass_time[i] +
                         20 * team_data[it->tid].try_times_before_pass[i];
+          int tid = it->tid;
           score_board.erase(it);
-          score_board.insert(ScoreBoredElementType(it->tid, score, penalty));
+          score_board.insert(ScoreBoredElementType(tid, score, penalty));
+          if (!is_first && ScoreBoredElementType(tid, score, penalty) < nval) {
+            auto newp =
+                score_board.find(ScoreBoredElementType(tid, score, penalty));
+            newp++;
+            write(team_id_to_name[tid].c_str(), ' ',
+                  team_id_to_name[newp->tid].c_str(), ' ',
+                  score,' ',penalty,'\n');
+          }
         }
         it = score_board.find(nval);
         if (it == score_board.end()) goto finish_scroll;
@@ -435,52 +445,50 @@ void QuerySubmission(char *team_name, char *problem_name, char *submit_status) {
     return;
   }
   write("[Info]Complete query submission.\n");
-  bool found=false;
+  bool found = false;
   SubmissionType res;
-  int tid=team_name_to_id[team_name];
-  if(!found)
-  {
+  int tid = team_name_to_id[team_name];
+  if (strcmp(problem_name, "ALL") == 0) {
+    if (strcmp(submit_status, "ALL") == 0) {
+      if (team_data[tid].submissions.size() > 0) {
+        res = team_data[tid].submissions[team_data[tid].submissions.size() - 1];
+        found = true;
+      }
+    } else {
+      if (team_data[tid]
+              .query_status_index[SubmitStatusParser[submit_status]] != -1) {
+        res =
+            team_data[tid].submissions[team_data[tid].query_status_index
+                                           [SubmitStatusParser[submit_status]]];
+        found = true;
+      }
+    }
+  } else {
+    if (strcmp(submit_status, "ALL") == 0) {
+      if (team_data[tid].query_problem_index[problem_name[0] - 'A'] != -1) {
+        res = team_data[tid].submissions
+                  [team_data[tid].query_problem_index[problem_name[0] - 'A']];
+        found = true;
+      }
+    } else {
+      if (team_data[tid]
+              .query_problem_status_index[problem_name[0] - 'A']
+                                         [SubmitStatusParser[submit_status]] !=
+          -1) {
+        res =
+            team_data[tid].submissions[team_data[tid].query_problem_status_index
+                                           [problem_name[0] - 'A']
+                                           [SubmitStatusParser[submit_status]]];
+        found = true;
+      }
+    }
+  }
+  if (!found) {
     write("Cannot find any submission.\n");
     return;
   }
-  if(strcmp(problem_name,"ALL")==0)
-  {
-    if(strcmp(submit_status,"ALL")==0)
-    {
-      if(team_data[tid].submissions.size()>0)
-      {
-        res=team_data[tid].submissions[team_data[tid].submissions.size()-1];
-        found=true;
-      }
-    }
-    else
-    {
-      if(team_data[tid].query_status_index[SubmitStatusParser[submit_status]]!=-1)
-      {
-        res=team_data[tid].submissions[team_data[tid].query_status_index[SubmitStatusParser[submit_status]]];
-        found=true;
-      }
-    }
-  }
-  else{
-    if(strcmp(submit_status,"ALL")==0)
-    {
-      if(team_data[tid].query_problem_index[problem_name[0]-'A']!=-1)
-      {
-        res=team_data[tid].submissions[team_data[tid].query_problem_index[problem_name[0]-'A']];
-        found=true;
-      }
-    }
-    else
-    {
-      if(team_data[tid].query_problem_status_index[problem_name[0]-'A'][SubmitStatusParser[submit_status]]!=-1)
-      {
-        res=team_data[tid].submissions[team_data[tid].query_problem_status_index[problem_name[0]-'A'][SubmitStatusParser[submit_status]]];
-        found=true;
-      }
-    }
-  }
-  write(team_name,' ',res.problem_name,' ',StatusType2Text[res.status].c_str(),' ',res.submit_time,"\n");
+  write(team_name, ' ', res.problem_name, ' ',
+        StatusType2Text[res.status].c_str(), ' ', res.submit_time, "\n");
 }
 }  // namespace BackEnd
 
@@ -621,7 +629,8 @@ inline void Excute(const char *const command) {
       char team_name[100];
       char problem_name[10];
       char status[20];
-      sscanf(command, "%*s%s%*s%*s%s%*s%*s%s", team_name, problem_name, status);
+      sscanf(command, "QUERY_SUBMISSION %s WHERE PROBLEM=%s AND STATUS=%s",
+             team_name, problem_name, status);
       ICPCManager::API::QuerySubmission(team_name, problem_name, status);
       break;
     }
@@ -637,6 +646,8 @@ inline void Excute(const char *const command) {
 }  // namespace API
 }  // namespace ICPCManager
 int main() {
+  // freopen("tmp/pro.in","r",stdin);
+  // freopen("tmp/pro.out","w",stdout);
   char command[1024];
   try {
     while (true) {
