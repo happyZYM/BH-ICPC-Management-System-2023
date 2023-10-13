@@ -382,11 +382,14 @@ void ScrollScoreBoard() {
     bool is_first = false;
     bool frozen_found = false;
     if (it == score_board.begin()) is_first = true;
-    --nxt;
+    if(!is_first) --nxt;
     auto nval = *nxt;
     // fprintf(stderr,"%d\n",it->tid);
+    // write("considering ", team_id_to_name[it->tid].c_str(), '\n');
     for (int i = 0; i < total_number_of_problems; i++) {
       if (team_data[it->tid].is_frozen[i]) {
+        // if(it->tid==team_name_to_id["Team_thu"])
+        // write("find thu frozen ",i,"\n");
         frozen_found = true;
         team_data[it->tid].is_frozen[i] = false;
         team_data[it->tid].already_passed_before_block[i] =
@@ -411,7 +414,9 @@ void ScrollScoreBoard() {
                   team_id_to_name[newp->tid].c_str(), ' ',
                   score,' ',penalty,'\n');
           }
+          else nval=ScoreBoredElementType(tid, score, penalty);
         }
+        else nval=*it;
         it = score_board.find(nval);
         if (it == score_board.end()) goto finish_scroll;
         goto next_round;
