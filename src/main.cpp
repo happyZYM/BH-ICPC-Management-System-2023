@@ -10,8 +10,10 @@
  * assert() to check things but will use static_assert() to check some basic
  * things.
  *
- * @codesytle This file is written in a sytle mainly based on Google C++ Style
- * Guide. What's sepecial is the comment:
+ * Codesytle: This file is written in a sytle mainly based on Google C++ Style
+ * Guide. As I use Clang-format to format my code, so the code style may be a
+ * little bit strange sometimes, in that case I'll manually format the
+ * code.What's sepecial is the comment:
  * 1. Multi-line comments are always before the code they comment on.
  * Usually the code they comment on is a complex procedure,like the definition
  * of a function,a class or a variable with complex operation. If a multi-line
@@ -25,9 +27,6 @@
  * 4. Some comments have special meanings,like "//TODO", "//FIXME", "//XXX","//
  * clang-format off" and "// clang-format on". They are not controlled by the
  * previous rules.
- *
- * As I use Clang-format to format my code, so the code style may be a little
- * bit strange sometimes, in the case I'll manually format the code.
  */
 /**
  * the following is a mannually embedded fast-read libarary.
@@ -124,17 +123,8 @@ enum CompetitionStatusType { kNotStarted, kNormalRunning, kFrozen, kEnded };
 enum SubmissionStatusType { kAC = 0, kWA = 1, kRE = 2, kTLE = 3 };
 CompetitionStatusType competition_status = kNotStarted;
 bool score_board_up_to_date = true;
-struct ScoreBoredElementType {
-  int tid;
-  std::string name;
-  int score;
-  int penalty;
-};
-inline bool operator<(const ScoreBoredElementType &a,
-                      const ScoreBoredElementType &b) {
-  ;
-}
-std::set<ScoreBoredElementType> score_board;
+int competition_duration_time;
+int total_number_of_problems;
 /**
  * @brief the definition of struct RawTeamDataType
  *
@@ -143,11 +133,13 @@ std::set<ScoreBoredElementType> score_board;
 struct RawTeamDataType {
   std::string name;
   int id;
+  int rank;
   struct SubmissionType {
     bool processed = false;
     SubmissionStatusType status;
     int submit_time;
   };
+  std::set<int, std::greater<int>> unfreeze_pass_time;
   int query_status_index[4], query_problem_index[26],
       query_problem_status_index[26][4];
   bool is_frozen[26] = {false};
@@ -155,6 +147,27 @@ struct RawTeamDataType {
   RawTeamDataType() { ; }
 };
 std::vector<RawTeamDataType> team_data = {RawTeamDataType()};
+struct ScoreBoredElementType {
+  int tid;
+  int score;
+  int penalty;
+};
+inline bool operator<(const ScoreBoredElementType &a,
+                      const ScoreBoredElementType &b) {
+  if (a.score != b.score) return a.score > b.score;
+  if (a.penalty != b.penalty) return a.penalty < b.penalty;
+  for (auto ita = team_data[a.tid].unfreeze_pass_time.begin(),
+            itb = team_data[b.tid].unfreeze_pass_time.begin();
+       ita != team_data[a.tid].unfreeze_pass_time.end() &&
+       itb != team_data[b.tid].unfreeze_pass_time.end();
+       ++ita, ++itb) {
+    if (*ita != *itb) return *ita < *itb;
+  }
+  if (team_data[a.tid].name == team_data[b.tid].name)
+    throw "teams in score bored should have distinctive names!";
+  return team_data[a.tid].name < team_data[b.tid].name;
+}
+std::set<ScoreBoredElementType> score_board;
 /**
  * @brief the definition of function AddTeam.
  * @param team_name the name of the team to be added.
@@ -175,7 +188,27 @@ void AddTeam(const char *const team_name) {
   team_id_to_name.push_back(team_name);
   write("[Info]Team added.\n");
 }
-inline void FreezeScoreBoard() { competition_status = kFrozen; }
+void StartCompetition(int duration_time, int problem_count) {
+  if (competition_status != kNotStarted) {
+    write("[Error]Start failed: competition has started.\n");
+    return;
+  }
+  competition_duration_time = duration_time;
+  total_number_of_problems = problem_count;
+  competition_status = kNormalRunning;
+  write("[Info]Competition starts.\n");
+}
+inline void Submit(char problem_name, char *team_name, char *submit_status,
+                   int time) {
+  ;
+}
+void FlushScoreBoard() { ; }
+void FreezeScoreBoard() { competition_status = kFrozen; }
+void ScrollScoreBoard() { ; }
+void QueryRanking(char *team_name) { ; }
+void QuerySubmission(char *team_name, char problem_name, char *submit_status) {
+  ;
+}
 }  // namespace BackEnd
 
 /**
@@ -200,10 +233,26 @@ void AddTeam(const char *const team_name) {
   // All checks passed.
   BackEnd::AddTeam(team_name);
 }
+inline void StartCompetition(int duration_time, int problem_count) {
+  BackEnd::StartCompetition(duration_time, problem_count);
+}
+inline void Submit(char problem_name, char *team_name, char *submit_status,
+                   int time) {
+  BackEnd::Submit(problem_name, team_name, submit_status, time);
+}
+inline void FlushScoreBoard() { BackEnd::FlushScoreBoard(); }
 /**
  * @brief the definition of function FreezeScoreBoard
  */
 inline void FreezeScoreBoard() { ICPCManager::BackEnd::FreezeScoreBoard(); }
+inline void ScrollScoreBoard() { ICPCManager::BackEnd::ScrollScoreBoard(); }
+inline void QueryRanking(char *team_name) {
+  ICPCManager::BackEnd::QueryRanking(team_name);
+}
+inline void QuerySubmission(char *team_name, char problem_name,
+                            char *submit_status) {
+  ICPCManager::BackEnd::QuerySubmission(team_name, problem_name, submit_status);
+}
 /**
  * @brief this function is used to end the contest.
  */
@@ -229,6 +278,7 @@ inline void Excute(const char *const command) {
     paramater_count =
         sscanf(command, "%*s%*s%d%*s%d", &duration_time, &problem_count);
     if (paramater_count != 2) throw "Invalid paramaters.";
+    ICPCManager::API::StartCompetition(duration_time, problem_count);
   } else if (strcmp(command_name, "SUBMIT") == 0) {  // submit a code
     char problem_name;
     char team_name[100];
@@ -236,20 +286,25 @@ inline void Excute(const char *const command) {
     int time;
     sscanf(command, "%*s%c%*s%s%*s%s%*s%d", &problem_name, team_name,
            submit_status, &time);
-  } else if (strcmp(command_name, "FLUSH") == 0) {  // flush the
-    ;
+    ICPCManager::API::Submit(problem_name, team_name, submit_status, time);
+  } else if (strcmp(command_name, "FLUSH") == 0) {
+    /*flush the score_board*/
+    ICPCManager::API::FlushScoreBoard();
   } else if (strcmp(command_name, "FREEZE") == 0) {
-    ;
+    /*freeze the score_board*/
+    ICPCManager::API::FreezeScoreBoard();
   } else if (strcmp(command_name, "SCROLL") == 0) {
-    ;
+    ICPCManager::API::ScrollScoreBoard();
   } else if (strcmp(command_name, "QUERY_RANKING") == 0) {
     char team_name[100];
     sscanf(command, "%*s%s", team_name);
+    ICPCManager::API::QueryRanking(team_name);
   } else if (strcmp(command_name, "QUERY_SUBMISSION") == 0) {
     char team_name[100];
     char problem_name;
     char status[10];
     sscanf(command, "%*s%s%*s%*s%c%*s%*s%s", team_name, &problem_name, status);
+    ICPCManager::API::QuerySubmission(team_name, problem_name, status);
   } else if (strcmp(command_name, "END") == 0)  // END
   {
     ICPCManager::API::EndContest();
