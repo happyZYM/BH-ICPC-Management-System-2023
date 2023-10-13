@@ -116,9 +116,10 @@ namespace BackEnd {
  * Note that the team id is 1-based. The problem id is 0-based.
  */
 const int kMaxTeamNumber = 10005;
+const int kIntInf = 0x3f3f3f3f;
 std::unordered_map<std::string, int> team_name_to_id;
 std::vector<std::string> team_id_to_name = {"nobody"};
-enum CompetitionStatusType { kNotStarted, kNormalRunning, kFrozen, kEnded };
+enum CompetitionStatusType { kNotStarted, kNormalRunning, kBlocked, kEnded };
 enum SubmissionStatusType { kAC = 0, kWA = 1, kRE = 2, kTLE = 3 };
 enum CommandType {
   kADDTEAM,
@@ -151,6 +152,14 @@ bool score_board_up_to_date = true;
 int competition_duration_time;
 int total_number_of_problems;
 int team_number = 0;
+struct SubmissionType {
+  bool synced_to_score_board = false;
+  SubmissionStatusType status;
+  int submit_time;
+  SubmissionType() {}
+  SubmissionType(SubmissionStatusType status, int submit_time)
+      : status(status), submit_time(submit_time) {}
+};
 /**
  * @brief the definition of struct RawTeamDataType
  *
@@ -160,18 +169,22 @@ struct RawTeamDataType {
   std::string name;
   int id;
   int rank;
-  struct SubmissionType {
-    bool processed = false;
-    SubmissionStatusType status;
-    int submit_time;
-  };
   std::set<int, std::greater<int>> unfreeze_pass_time;
   int query_status_index[4], query_problem_index[26],
       query_problem_status_index[26][4];
   // as index in submissions are 0 based, so we use -1 to indicate that the team
   // has not submitted a problem satisfying the query condition.
   bool is_frozen[26] = {false};
-  std::vector<SubmissionStatusType> submissions;
+  bool already_passed[26] = {false};
+  bool already_passed_before_block[26] = {false};
+  int first_pass_time[26] = {kIntInf, kIntInf, kIntInf, kIntInf, kIntInf,
+                             kIntInf, kIntInf, kIntInf, kIntInf, kIntInf,
+                             kIntInf, kIntInf, kIntInf, kIntInf, kIntInf,
+                             kIntInf, kIntInf, kIntInf, kIntInf, kIntInf,
+                             kIntInf, kIntInf, kIntInf, kIntInf, kIntInf,
+                             kIntInf};
+  int try_times_before_pass[26] = {0};
+  std::vector<SubmissionType> submissions;
   RawTeamDataType() { ; }
 };
 std::vector<RawTeamDataType> team_data = {RawTeamDataType()};
@@ -242,26 +255,51 @@ void StartCompetition(int duration_time, int problem_count) {
   for (int i = 1; i <= team_number; i++) {
     score_board.insert(ScoreBoredElementType(i, 0, 0));
   }
+  int cnt = 0;
+  for (auto it = score_board.begin(); it != score_board.end(); ++it) {
+    team_data[it->tid].rank = ++cnt;
+  }
   write("[Info]Competition starts.\n");
 }
 inline void Submit(char problem_name, char *team_name,
                    const char *submit_status, int time) {
   int team_id = team_name_to_id[team_name];
   SubmissionStatusType status = SubmitStatusParser[submit_status];
-  switch(status)
-  {
-    case kAC:
-    {
+  SubmissionType record = SubmissionType(status, time);
+  team_data[team_id].submissions.push_back(record);
+  team_data[team_id].query_problem_index[problem_name - 'A'] =
+      team_data[team_id].submissions.size() - 1;
+  team_data[team_id].query_problem_status_index[problem_name - 'A'][status] =
+      team_data[team_id].submissions.size() - 1;
+  team_data[team_id].query_status_index[status] =
+      team_data[team_id].submissions.size() - 1;
+  if (team_data[team_id].already_passed_before_block[problem_name - 'A'] == 0 &&
+      competition_status == kBlocked) {
+    team_data[team_id].is_frozen[problem_name - 'A'] = true;
+  }
+  switch (status) {
+    case kAC: {
+      if (team_data[team_id].already_passed[problem_name - 'A'] == false) {
+        team_data[team_id].first_pass_time[problem_name - 'A'] = time;
+      }
+      team_data[team_id].already_passed[problem_name - 'A'] = true;
+      if (competition_status == kNormalRunning)
+        team_data[team_id].already_passed_before_block[problem_name - 'A'] =
+            true;
       break;
     }
-    case kRE: case kWA: case kTLE:
-    {
+    case kRE:
+    case kWA:
+    case kTLE: {
+      if (team_data[team_id].already_passed[problem_name - 'A'] == false) {
+        team_data[team_id].try_times_before_pass[problem_name - 'A']++;
+      }
       break;
     }
   }
 }
 void FlushScoreBoard() { ; }
-void FreezeScoreBoard() { competition_status = kFrozen; }
+void FreezeScoreBoard() { competition_status = kBlocked; }
 void ScrollScoreBoard() { ; }
 void QueryRanking(char *team_name) { ; }
 void QuerySubmission(char *team_name, char problem_name, char *submit_status) {
