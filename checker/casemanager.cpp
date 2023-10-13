@@ -1,5 +1,12 @@
+/**
+ * @file casemanager.cpp
+ *
+ * @brief this is the casemanager of ICPC-Management-System to manage the test
+ * cases.
+ */
 #include <sqlite3.h>
 #include <stdio.h>
+#include <unistd.h>
 
 static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
   int i;
