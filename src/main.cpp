@@ -118,13 +118,39 @@ namespace BackEnd {
 const int kMaxTeamNumber = 10005;
 std::unordered_map<std::string, int> team_name_to_id;
 std::vector<std::string> team_id_to_name = {"nobody"};
-int team_number = 0;
 enum CompetitionStatusType { kNotStarted, kNormalRunning, kFrozen, kEnded };
 enum SubmissionStatusType { kAC = 0, kWA = 1, kRE = 2, kTLE = 3 };
+enum CommandType {
+  kADDTEAM,
+  kSTART,
+  kSUBMIT,
+  kFLUSH,
+  kFREEZE,
+  kSCROLL,
+  kQUERY_RANKING,
+  kQUERY_SUBMISSION,
+  kEND
+};
+std::unordered_map<std::string, SubmissionStatusType> SubmitStatusParser = {
+    {"Accepted", kAC},
+    {"Wrong_Answer", kWA},
+    {"Runtime_Error", kRE},
+    {"Time_Limit_Exceed", kTLE}};
+std::unordered_map<std::string, CommandType> CommandParser = {
+    {"ADDTEAM", kADDTEAM},
+    {"START", kSTART},
+    {"SUBMIT", kSUBMIT},
+    {"FLUSH", kFLUSH},
+    {"FREEZE", kFREEZE},
+    {"SCROLL", kSCROLL},
+    {"QUERY_RANKING", kQUERY_RANKING},
+    {"QUERY_SUBMISSION", kQUERY_SUBMISSION},
+    {"END", kEND}};
 CompetitionStatusType competition_status = kNotStarted;
 bool score_board_up_to_date = true;
 int competition_duration_time;
 int total_number_of_problems;
+int team_number = 0;
 /**
  * @brief the definition of struct RawTeamDataType
  *
@@ -142,15 +168,21 @@ struct RawTeamDataType {
   std::set<int, std::greater<int>> unfreeze_pass_time;
   int query_status_index[4], query_problem_index[26],
       query_problem_status_index[26][4];
+  // as index in submissions are 0 based, so we use -1 to indicate that the team
+  // has not submitted a problem satisfying the query condition.
   bool is_frozen[26] = {false};
   std::vector<SubmissionStatusType> submissions;
   RawTeamDataType() { ; }
 };
 std::vector<RawTeamDataType> team_data = {RawTeamDataType()};
+// warning: team_data[0] has no meaning
 struct ScoreBoredElementType {
   int tid;
   int score;
   int penalty;
+  ScoreBoredElementType() {}
+  ScoreBoredElementType(int tid, int score, int penalty)
+      : tid(tid), score(score), penalty(penalty) {}
 };
 inline bool operator<(const ScoreBoredElementType &a,
                       const ScoreBoredElementType &b) {
@@ -186,6 +218,16 @@ void AddTeam(const char *const team_name) {
   team_number++;
   team_name_to_id[team_name] = team_number;
   team_id_to_name.push_back(team_name);
+  team_data.push_back(RawTeamDataType());
+  team_data[team_number].name = team_name;
+  team_data[team_number].id = team_number;
+  /*update three index to -1*/
+  for (int i = 0; i < 4; i++) team_data[team_number].query_status_index[i] = -1;
+  for (int i = 0; i < 26; i++) {
+    team_data[team_number].query_problem_index[i] = -1;
+    for (int j = 0; j < 4; j++)
+      team_data[team_number].query_problem_status_index[i][j] = -1;
+  }
   write("[Info]Team added.\n");
 }
 void StartCompetition(int duration_time, int problem_count) {
@@ -196,11 +238,27 @@ void StartCompetition(int duration_time, int problem_count) {
   competition_duration_time = duration_time;
   total_number_of_problems = problem_count;
   competition_status = kNormalRunning;
+  /*init the score board*/
+  for (int i = 1; i <= team_number; i++) {
+    score_board.insert(ScoreBoredElementType(i, 0, 0));
+  }
   write("[Info]Competition starts.\n");
 }
-inline void Submit(char problem_name, char *team_name, char *submit_status,
-                   int time) {
-  ;
+inline void Submit(char problem_name, char *team_name,
+                   const char *submit_status, int time) {
+  int team_id = team_name_to_id[team_name];
+  SubmissionStatusType status = SubmitStatusParser[submit_status];
+  switch(status)
+  {
+    case kAC:
+    {
+      break;
+    }
+    case kRE: case kWA: case kTLE:
+    {
+      break;
+    }
+  }
 }
 void FlushScoreBoard() { ; }
 void FreezeScoreBoard() { competition_status = kFrozen; }
@@ -238,19 +296,37 @@ inline void StartCompetition(int duration_time, int problem_count) {
 }
 inline void Submit(char problem_name, char *team_name, char *submit_status,
                    int time) {
+  if (BackEnd::competition_status == BackEnd::kNotStarted)
+    throw "Competition hasn't started yet.";
   BackEnd::Submit(problem_name, team_name, submit_status, time);
 }
-inline void FlushScoreBoard() { BackEnd::FlushScoreBoard(); }
+inline void FlushScoreBoard() {
+  if (BackEnd::competition_status == BackEnd::kNotStarted)
+    throw "Competition hasn't started yet.";
+  BackEnd::FlushScoreBoard();
+}
 /**
  * @brief the definition of function FreezeScoreBoard
  */
-inline void FreezeScoreBoard() { ICPCManager::BackEnd::FreezeScoreBoard(); }
-inline void ScrollScoreBoard() { ICPCManager::BackEnd::ScrollScoreBoard(); }
+inline void FreezeScoreBoard() {
+  if (BackEnd::competition_status == BackEnd::kNotStarted)
+    throw "Competition hasn't started yet.";
+  ICPCManager::BackEnd::FreezeScoreBoard();
+}
+inline void ScrollScoreBoard() {
+  if (BackEnd::competition_status == BackEnd::kNotStarted)
+    throw "Competition hasn't started yet.";
+  ICPCManager::BackEnd::ScrollScoreBoard();
+}
 inline void QueryRanking(char *team_name) {
+  if (BackEnd::competition_status == BackEnd::kNotStarted)
+    throw "Competition hasn't started yet.";
   ICPCManager::BackEnd::QueryRanking(team_name);
 }
 inline void QuerySubmission(char *team_name, char problem_name,
                             char *submit_status) {
+  if (BackEnd::competition_status == BackEnd::kNotStarted)
+    throw "Competition hasn't started yet.";
   ICPCManager::BackEnd::QuerySubmission(team_name, problem_name, submit_status);
 }
 /**
@@ -269,47 +345,70 @@ void EndContest() {
 inline void Excute(const char *const command) {
   char command_name[1024];
   sscanf(command, "%s", command_name);
-  if (strcmp(command_name, "ADDTEAM") == 0) {  // add a team
-    char team_name[100];
-    sscanf(command, "%*s%s", team_name);
-    ICPCManager::API::AddTeam(team_name);
-  } else if (strcmp(command_name, "START") == 0) {  // start the contest
-    int duration_time, problem_count, paramater_count;
-    paramater_count =
-        sscanf(command, "%*s%*s%d%*s%d", &duration_time, &problem_count);
-    if (paramater_count != 2) throw "Invalid paramaters.";
-    ICPCManager::API::StartCompetition(duration_time, problem_count);
-  } else if (strcmp(command_name, "SUBMIT") == 0) {  // submit a code
-    char problem_name;
-    char team_name[100];
-    char submit_status[10];
-    int time;
-    sscanf(command, "%*s%c%*s%s%*s%s%*s%d", &problem_name, team_name,
-           submit_status, &time);
-    ICPCManager::API::Submit(problem_name, team_name, submit_status, time);
-  } else if (strcmp(command_name, "FLUSH") == 0) {
-    /*flush the score_board*/
-    ICPCManager::API::FlushScoreBoard();
-  } else if (strcmp(command_name, "FREEZE") == 0) {
-    /*freeze the score_board*/
-    ICPCManager::API::FreezeScoreBoard();
-  } else if (strcmp(command_name, "SCROLL") == 0) {
-    ICPCManager::API::ScrollScoreBoard();
-  } else if (strcmp(command_name, "QUERY_RANKING") == 0) {
-    char team_name[100];
-    sscanf(command, "%*s%s", team_name);
-    ICPCManager::API::QueryRanking(team_name);
-  } else if (strcmp(command_name, "QUERY_SUBMISSION") == 0) {
-    char team_name[100];
-    char problem_name;
-    char status[10];
-    sscanf(command, "%*s%s%*s%*s%c%*s%*s%s", team_name, &problem_name, status);
-    ICPCManager::API::QuerySubmission(team_name, problem_name, status);
-  } else if (strcmp(command_name, "END") == 0)  // END
-  {
-    ICPCManager::API::EndContest();
-  } else
-    throw "Unknown command.";
+  ICPCManager::BackEnd::CommandType command_type =
+      ICPCManager::BackEnd::CommandParser[command_name];
+  switch (command_type) {
+    case ICPCManager::BackEnd::kADDTEAM: {
+      char team_name[100];
+      sscanf(command, "%*s%s", team_name);
+      ICPCManager::API::AddTeam(team_name);
+      break;
+    }
+    case ICPCManager::BackEnd::kSTART: {
+      int duration_time, problem_count, paramater_count;
+      paramater_count =
+          sscanf(command, "%*s%*s%d%*s%d", &duration_time, &problem_count);
+      if (paramater_count != 2) throw "Invalid paramaters.";
+      ICPCManager::API::StartCompetition(duration_time, problem_count);
+      break;
+    }
+    case ICPCManager::BackEnd::kSUBMIT: {
+      char problem_name;
+      char team_name[100];
+      char submit_status[10];
+      int time;
+      sscanf(command, "%*s%c%*s%s%*s%s%*s%d", &problem_name, team_name,
+             submit_status, &time);
+      ICPCManager::API::Submit(problem_name, team_name, submit_status, time);
+      break;
+    }
+    case ICPCManager::BackEnd::kFLUSH: {
+      /*flush the score_board*/
+      ICPCManager::API::FlushScoreBoard();
+      break;
+    }
+    case ICPCManager::BackEnd::kFREEZE: {
+      /*freeze the score_board*/
+      ICPCManager::API::FreezeScoreBoard();
+      break;
+    }
+    case ICPCManager::BackEnd::kSCROLL: {
+      ICPCManager::API::ScrollScoreBoard();
+      break;
+    }
+    case ICPCManager::BackEnd::kQUERY_RANKING: {
+      char team_name[100];
+      sscanf(command, "%*s%s", team_name);
+      ICPCManager::API::QueryRanking(team_name);
+      break;
+    }
+    case ICPCManager::BackEnd::kQUERY_SUBMISSION: {
+      char team_name[100];
+      char problem_name;
+      char status[10];
+      sscanf(command, "%*s%s%*s%*s%c%*s%*s%s", team_name, &problem_name,
+             status);
+      ICPCManager::API::QuerySubmission(team_name, problem_name, status);
+      break;
+    }
+    case ICPCManager::BackEnd::kEND: {
+      ICPCManager::API::EndContest();
+      break;
+    }
+    default: {
+      throw "Unknown command.";
+    }
+  }
 }
 }  // namespace API
 }  // namespace ICPCManager
