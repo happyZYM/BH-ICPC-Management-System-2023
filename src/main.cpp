@@ -811,14 +811,18 @@ int main() {
   // freopen("tmp/pro.out", "w", stdout);
   ICPCManager::BackEnd::team_data.reserve(10005);
   char command[1024];
+#ifdef DebugOn
   try {
+#endif
     while (true) {
       readline(command);
       ICPCManager::API::Excute(command);
     }
+#ifdef DebugOn
   } catch (const char *msg) {
     fprintf(stderr, "\e[7m\e[31m[Unexpected Error] %s\e[0m\n", msg);
     exit(1);
   }
+#endif
   return 0;
 }
