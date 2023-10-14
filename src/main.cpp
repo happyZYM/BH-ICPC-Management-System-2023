@@ -174,7 +174,7 @@ struct RawTeamDataType {
   std::string name;
   int id;
   int rank;
-  std::set<int, std::greater<int>> pass_time_before_freeze;
+  std::multiset<int, std::greater<int>> pass_time_before_freeze;
   int query_status_index[4], query_problem_index[26],
       query_problem_status_index[26][4];
   // as index in submissions are 0 based, so we use -1 to indicate that the team
@@ -208,6 +208,14 @@ inline bool operator<(const ScoreBoredElementType &a,
                       const ScoreBoredElementType &b) {
   if (a.score != b.score) return a.score > b.score;
   if (a.penalty != b.penalty) return a.penalty < b.penalty;
+  if (team_data[a.tid].pass_time_before_freeze.size() !=
+      team_data[b.tid].pass_time_before_freeze.size()) {
+    char *str = new char[1005];
+    sprintf(str, "pass_time_before_freeze size not equal!\n%d %d\n%d %d\n",
+            team_data[a.tid].pass_time_before_freeze.size(),
+            team_data[b.tid].pass_time_before_freeze.size(), a.score, b.score);
+    throw str;
+  }
   for (auto ita = team_data[a.tid].pass_time_before_freeze.begin(),
             itb = team_data[b.tid].pass_time_before_freeze.begin();
        ita != team_data[a.tid].pass_time_before_freeze.end() &&
@@ -289,12 +297,14 @@ inline void Submit(char problem_name, char *team_name,
     case kAC: {
       if (team_data[team_id].already_passed[problem_name - 'A'] == false) {
         team_data[team_id].first_pass_time[problem_name - 'A'] = time;
+        if (competition_status == kNormalRunning)
+          team_data[team_id].pass_time_before_freeze.insert(time);
       }
       team_data[team_id].already_passed[problem_name - 'A'] = true;
       if (competition_status == kNormalRunning) {
         team_data[team_id].already_passed_before_block[problem_name - 'A'] =
             true;
-        team_data[team_id].pass_time_before_freeze.insert(time);
+        // team_data[team_id].pass_time_before_freeze.insert(time);
       }
       break;
     }
@@ -367,6 +377,11 @@ void PrintScoreBoard() {
     write('\n');
   }
 }
+void CheckDataAfterScroll() {
+  for (int i = 1; i <= team_number; i++)
+    for (int j = 0; j < total_number_of_problems; j++)
+      if (team_data[i].is_frozen[j]) throw "has frozen problem after scroll!";
+}
 void ScrollScoreBoard() {
   if (competition_status != kBlocked) {
     write("[Error]Scroll failed: scoreboard has not been frozen.\n");
@@ -382,22 +397,21 @@ void ScrollScoreBoard() {
     bool is_first = false;
     bool frozen_found = false;
     if (it == score_board.begin()) is_first = true;
-    if(!is_first) --nxt;
+    if (!is_first) --nxt;
     auto nval = *nxt;
-    // fprintf(stderr,"%d\n",it->tid);
-    // write("considering ", team_id_to_name[it->tid].c_str(), '\n');
     for (int i = 0; i < total_number_of_problems; i++) {
       if (team_data[it->tid].is_frozen[i]) {
-        // if(it->tid==team_name_to_id["Team_thu"])
-        // write("find thu frozen ",i,"\n");
         frozen_found = true;
         team_data[it->tid].is_frozen[i] = false;
-        team_data[it->tid].already_passed_before_block[i] =
+        team_data[it->tid].already_passed_before_block[i] |=
             team_data[it->tid].already_passed[i];
         team_data[it->tid].try_times_before_pass_before_block[i] =
             team_data[it->tid].try_times_before_pass[i];
         team_data[it->tid].submissions_during_block[i] = 0;
-        if (team_data[it->tid].first_pass_time[i] < kIntInf) {
+        if (team_data[it->tid].already_passed[i] !=
+            (team_data[it->tid].first_pass_time[i] < kIntInf))
+          throw "already_passed not equal to first_pass_time < kIntInf";
+        if (team_data[it->tid].already_passed[i]) {
           int score = it->score + 1;
           team_data[it->tid].pass_time_before_freeze.insert(
               team_data[it->tid].first_pass_time[i]);
@@ -411,12 +425,12 @@ void ScrollScoreBoard() {
                 score_board.find(ScoreBoredElementType(tid, score, penalty));
             newp++;
             write(team_id_to_name[tid].c_str(), ' ',
-                  team_id_to_name[newp->tid].c_str(), ' ',
-                  score,' ',penalty,'\n');
-          }
-          else nval=ScoreBoredElementType(tid, score, penalty);
-        }
-        else nval=*it;
+                  team_id_to_name[newp->tid].c_str(), ' ', score, ' ', penalty,
+                  '\n');
+          } else
+            nval = ScoreBoredElementType(tid, score, penalty);
+        } else
+          nval = *it;
         it = score_board.find(nval);
         if (it == score_board.end()) goto finish_scroll;
         goto next_round;
@@ -429,6 +443,7 @@ void ScrollScoreBoard() {
 finish_scroll:;
   competition_status = kNormalRunning;
   FlushScoreBoard(false);
+  CheckDataAfterScroll();
   PrintScoreBoard();
 }
 void QueryRanking(char *team_name) {
