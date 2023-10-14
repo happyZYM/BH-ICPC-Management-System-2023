@@ -231,10 +231,10 @@ inline bool operator<(const ScoreBoredElementType &a,
   }
   return team_data[a.tid].name_rank < team_data[b.tid].name_rank;
 }
-std::set<ScoreBoredElementType> score_board;
-// __gnu_pbds::tree<ScoreBoredElementType, __gnu_pbds::null_type,
-//                  std::less<ScoreBoredElementType>, __gnu_pbds::rb_tree_tag>
-// score_board;
+// std::set<ScoreBoredElementType> score_board;
+__gnu_pbds::tree<ScoreBoredElementType, __gnu_pbds::null_type,
+                 std::less<ScoreBoredElementType>, __gnu_pbds::rb_tree_tag>
+score_board;
 std::vector<int> teams_to_be_updated;
 std::vector<bool> teams_not_latest;
 std::vector<ScoreBoredElementType> value_in_score_board;
