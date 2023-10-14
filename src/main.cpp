@@ -174,6 +174,7 @@ struct RawTeamDataType {
   std::string name;
   int id;
   int rank;
+  int name_rank;
   std::multiset<int, std::greater<int>> pass_time_before_freeze;
   int query_status_index[4], query_problem_index[26],
       query_problem_status_index[26][4];
@@ -224,7 +225,7 @@ inline bool operator<(const ScoreBoredElementType &a,
        ++ita, ++itb) {
     if (*ita != *itb) return *ita < *itb;
   }
-  return team_data[a.tid].name < team_data[b.tid].name;
+  return team_data[a.tid].name_rank < team_data[b.tid].name_rank;
 }
 std::set<ScoreBoredElementType> score_board;
 /**
@@ -265,6 +266,14 @@ void StartCompetition(int duration_time, int problem_count) {
   competition_duration_time = duration_time;
   total_number_of_problems = problem_count;
   competition_status = kNormalRunning;
+  /*init the name_rank*/
+  std::vector<std::pair<std::string, int>> name_rank;
+  name_rank.reserve(team_number);
+  for (int i = 1; i <= team_number; i++)
+    name_rank.push_back(std::make_pair(team_data[i].name, i));
+  std::sort(name_rank.begin(), name_rank.end());
+  for (int i = 0; i < team_number; i++)
+    team_data[name_rank[i].second].name_rank = i;
   /*init the score board*/
   for (int i = 1; i <= team_number; i++) {
     score_board.insert(ScoreBoredElementType(i, 0, 0));
@@ -322,6 +331,7 @@ inline void Submit(char problem_name, char *team_name,
   }
 }
 void FlushScoreBoard(bool show_info = true, bool rebuild = true) {
+  // rebuild=false;
   if (rebuild) {
     score_board.clear();
     for (int i = 1; i <= team_number; i++) {
@@ -379,6 +389,7 @@ void PrintScoreBoard() {
   }
 }
 void CheckDataAfterScroll() {
+  // return;
   for (int i = 1; i <= team_number; i++)
     for (int j = 0; j < total_number_of_problems; j++)
       if (team_data[i].is_frozen[j]) throw "has frozen problem after scroll!";
