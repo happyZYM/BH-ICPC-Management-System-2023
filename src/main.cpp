@@ -100,6 +100,7 @@ template<typename A_t,typename B_t,typename C_t,typename D_t> inline void write(
 #endif
 // clang-format on
 // end of fast-read libarary
+// #define DebugOn
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -178,7 +179,6 @@ struct RawTeamDataType {
   int rank;
   int name_rank;
   std::multiset<int, std::greater<int>> pass_time_before_freeze;
-  std::multiset<int, std::greater<int>> pass_time_before_freeze_new;
   int query_status_index[4], query_problem_index[26],
       query_problem_status_index[26][4];
   // as index in submissions are 0 based, so we use -1 to indicate that the team
@@ -186,6 +186,7 @@ struct RawTeamDataType {
   bool is_frozen[26] = {false};
   bool already_passed[26] = {false};
   bool already_passed_before_block[26] = {false};
+  bool acceptence_tracked[26] = {false};
   int first_pass_time[26] = {kIntInf, kIntInf, kIntInf, kIntInf, kIntInf,
                              kIntInf, kIntInf, kIntInf, kIntInf, kIntInf,
                              kIntInf, kIntInf, kIntInf, kIntInf, kIntInf,
@@ -288,8 +289,10 @@ void StartCompetition(int duration_time, int problem_count) {
   for (int i = 1; i <= team_number; i++) {
     score_board.insert(ScoreBoredElementType(i, 0, 0));
     value_in_score_board[i] = ScoreBoredElementType(i, 0, 0);
+#ifdef DebugOn
     if (score_board.find(value_in_score_board[i]) == score_board.end())
       throw "cannot find tid in score_board immediately after insert in func StartCompetition";
+#endif
   }
   int cnt = 0;
   for (auto it = score_board.begin(); it != score_board.end(); ++it) {
@@ -320,8 +323,8 @@ inline void Submit(char problem_name, char *team_name,
     case kAC: {
       if (team_data[team_id].already_passed[problem_name - 'A'] == false) {
         team_data[team_id].first_pass_time[problem_name - 'A'] = time;
-        if (competition_status == kNormalRunning)
-          team_data[team_id].pass_time_before_freeze_new.insert(time);
+        // if (competition_status == kNormalRunning)
+        //   team_data[team_id].pass_time_before_freeze_new.insert(time);
       }
       team_data[team_id].already_passed[problem_name - 'A'] = true;
       if (competition_status == kNormalRunning) {
@@ -366,13 +369,19 @@ void FlushScoreBoard(bool show_info = true, bool rebuild = true) {
     for (int i = 0; i < teams_to_be_updated.size(); i++) {
       int tid = teams_to_be_updated[i];
       int score = 0, penalty = 0;
+      std::vector<int> new_problems_accepted;
       for (int j = 0; j < total_number_of_problems; j++) {
         if (team_data[tid].already_passed_before_block[j]) {
           penalty += team_data[tid].first_pass_time[j] +
                      team_data[tid].try_times_before_pass[j] * 20;
           score++;
+          if (team_data[tid].acceptence_tracked[j] == false) {
+            new_problems_accepted.push_back(j);
+            team_data[tid].acceptence_tracked[j] = true;
+          }
         }
       }
+#ifdef DebugOn
       if (score_board.find(value_in_score_board[tid]) == score_board.end()) {
         char *error_message = new char[1005];
         sprintf(error_message,
@@ -384,15 +393,21 @@ void FlushScoreBoard(bool show_info = true, bool rebuild = true) {
                 value_in_score_board[tid].tid);
         throw error_message;
       }
+#endif
       score_board.erase(value_in_score_board[tid]);
-      team_data[tid].pass_time_before_freeze=team_data[tid].pass_time_before_freeze_new;
+      // team_data[tid].pass_time_before_freeze=team_data[tid].pass_time_before_freeze_new;
+      for (int j : new_problems_accepted)
+        team_data[tid].pass_time_before_freeze.insert(
+            team_data[tid].first_pass_time[j]);
       score_board.insert(ScoreBoredElementType(tid, score, penalty));
       value_in_score_board[tid] = ScoreBoredElementType(tid, score, penalty);
       teams_not_latest[tid] = false;
     }
     teams_to_be_updated.clear();
+#ifdef DebugOn
     if (score_board.size() != team_number)
       throw "score_board.size()!=team_number";
+#endif
   }
   int cnt = 0;
   for (auto it = score_board.begin(); it != score_board.end(); ++it) {
@@ -436,12 +451,14 @@ void PrintScoreBoard() {
     write('\n');
   }
 }
+#ifdef DebugOn
 void CheckDataAfterScroll() {
   // return;
   for (int i = 1; i <= team_number; i++)
     for (int j = 0; j < total_number_of_problems; j++)
       if (team_data[i].is_frozen[j]) throw "has frozen problem after scroll!";
 }
+#endif
 void ScrollScoreBoard() {
   if (competition_status != kBlocked) {
     write("[Error]Scroll failed: scoreboard has not been frozen.\n");
@@ -469,13 +486,15 @@ void ScrollScoreBoard() {
         team_data[it->tid].try_times_before_pass_before_block[i] =
             team_data[it->tid].try_times_before_pass[i];
         team_data[it->tid].submissions_during_block[i] = 0;
+#ifdef DebugOn
         if (team_data[it->tid].already_passed[i] !=
             (team_data[it->tid].first_pass_time[i] < kIntInf))
           throw "already_passed not equal to first_pass_time < kIntInf";
+#endif
         if (team_data[it->tid].already_passed[i]) {
           int score = it->score + 1;
-          team_data[it->tid].pass_time_before_freeze_new.insert(
-              team_data[it->tid].first_pass_time[i]);
+          // team_data[it->tid].pass_time_before_freeze_new.insert(
+          //     team_data[it->tid].first_pass_time[i]);
           if (teams_not_latest[it->tid] == false)
             teams_to_be_updated.push_back(it->tid);
           teams_not_latest[it->tid] = true;
@@ -483,12 +502,17 @@ void ScrollScoreBoard() {
                         20 * team_data[it->tid].try_times_before_pass[i];
           int tid = it->tid;
           score_board.erase(it);
-          team_data[it->tid].pass_time_before_freeze=team_data[it->tid].pass_time_before_freeze_new;
+          // team_data[it->tid].pass_time_before_freeze=team_data[it->tid].pass_time_before_freeze_new;
+          team_data[tid].acceptence_tracked[i] = true;
+          team_data[tid].pass_time_before_freeze.insert(
+              team_data[tid].first_pass_time[i]);
           score_board.insert(ScoreBoredElementType(tid, score, penalty));
           value_in_score_board[tid] =
               ScoreBoredElementType(tid, score, penalty);
+#ifdef DebugOn
           if (score_board.find(value_in_score_board[tid]) == score_board.end())
             throw "cannot find tid in score_board immediately after insert in func ScrollScoreBoard";
+#endif
           if (!is_first && ScoreBoredElementType(tid, score, penalty) < nval) {
             auto newp =
                 score_board.find(ScoreBoredElementType(tid, score, penalty));
@@ -512,7 +536,9 @@ void ScrollScoreBoard() {
 finish_scroll:;
   competition_status = kNormalRunning;
   FlushScoreBoard(false, false);
+#ifdef DebugOn
   CheckDataAfterScroll();
+#endif
   PrintScoreBoard();
 }
 void QueryRanking(char *team_name) {
@@ -579,20 +605,21 @@ void QuerySubmission(char *team_name, char *problem_name, char *submit_status) {
   write(team_name, ' ', res.problem_name, ' ',
         StatusType2Text[res.status].c_str(), ' ', res.submit_time, "\n");
 }
-void PrintStatus() { 
-  for(int i=1;i<=team_number;i++)
-  {
-    fprintf(stderr,"team %d: %s\n",i,team_data[i].name.c_str());
+#ifdef DebugOn
+void PrintStatus() {
+  for (int i = 1; i <= team_number; i++) {
+    fprintf(stderr, "team %d: %s\n", i, team_data[i].name.c_str());
     /*value_in_score_board*/
-    fprintf(stderr,"value_in_score_board: %d %d %d\n",value_in_score_board[i].tid,value_in_score_board[i].score,value_in_score_board[i].penalty);
+    fprintf(stderr, "value_in_score_board: %d %d %d\n",
+            value_in_score_board[i].tid, value_in_score_board[i].score,
+            value_in_score_board[i].penalty);
   }
   /*score_board*/
-  fprintf(stderr,"score_board:\n");
-  for(auto it=score_board.begin();it!=score_board.end();++it)
-  {
-    fprintf(stderr,"%d %d %d\n",it->tid,it->score,it->penalty);
+  fprintf(stderr, "score_board:\n");
+  for (auto it = score_board.begin(); it != score_board.end(); ++it) {
+    fprintf(stderr, "%d %d %d\n", it->tid, it->score, it->penalty);
   }
- }
+}
 void CheckAccordanceBetweenScoreBoardAndValueInScoreBoard() {
   for (int i = 1; i <= team_number; i++) {
     if (score_board.find(value_in_score_board[i]) == score_board.end()) {
@@ -601,6 +628,7 @@ void CheckAccordanceBetweenScoreBoardAndValueInScoreBoard() {
     }
   }
 }
+#endif
 }  // namespace BackEnd
 
 /**
@@ -616,12 +644,14 @@ namespace API {
  */
 void AddTeam(const char *const team_name) {
   int len = strlen(team_name);
+#ifdef DebugOn
   if (len > 20) throw "Team name too long.";
   for (int i = 0; i < len; i++)
     if (!(team_name[i] >= 'a' && team_name[i] <= 'z' ||
           team_name[i] >= 'A' && team_name[i] <= 'Z' ||
           team_name[i] >= '0' && team_name[i] <= '9' || team_name[i] == '_'))
       throw "Team name contains invalid characters.";
+#endif
   // All checks passed.
   BackEnd::AddTeam(team_name);
 }
@@ -630,6 +660,7 @@ inline void StartCompetition(int duration_time, int problem_count) {
 }
 inline void Submit(char problem_name, char *team_name, char *submit_status,
                    int time) {
+#ifdef DebugOn
   if (BackEnd::competition_status == BackEnd::kNotStarted)
     throw "Competition hasn't started yet.";
   if (ICPCManager::BackEnd::team_name_to_id.find(team_name) ==
@@ -641,35 +672,46 @@ inline void Submit(char problem_name, char *team_name, char *submit_status,
             problem_name, team_name, submit_status, time, current_command);
     throw str;
   }
+#endif
   BackEnd::Submit(problem_name, team_name, submit_status, time);
 }
 inline void FlushScoreBoard() {
+#ifdef DebugOn
   if (BackEnd::competition_status == BackEnd::kNotStarted)
     throw "Competition hasn't started yet.";
+#endif
   BackEnd::FlushScoreBoard();
 }
 /**
  * @brief the definition of function FreezeScoreBoard
  */
 inline void FreezeScoreBoard() {
+#ifdef DebugOn
   if (BackEnd::competition_status == BackEnd::kNotStarted)
     throw "Competition hasn't started yet.";
+#endif
   ICPCManager::BackEnd::FreezeScoreBoard();
 }
 inline void ScrollScoreBoard() {
+#ifdef DebugOn
   if (BackEnd::competition_status == BackEnd::kNotStarted)
     throw "Competition hasn't started yet.";
+#endif
   ICPCManager::BackEnd::ScrollScoreBoard();
 }
 inline void QueryRanking(char *team_name) {
+#ifdef DebugOn
   if (BackEnd::competition_status == BackEnd::kNotStarted)
     throw "Competition hasn't started yet.";
+#endif
   ICPCManager::BackEnd::QueryRanking(team_name);
 }
 inline void QuerySubmission(char *team_name, char *problem_name,
                             char *submit_status) {
+#ifdef DebugOn
   if (BackEnd::competition_status == BackEnd::kNotStarted)
     throw "Competition hasn't started yet.";
+#endif
   ICPCManager::BackEnd::QuerySubmission(team_name, problem_name, submit_status);
 }
 /**
@@ -702,7 +744,9 @@ inline void Excute(const char *const command) {
       int duration_time, problem_count, paramater_count;
       paramater_count =
           sscanf(command, "%*s%*s%d%*s%d", &duration_time, &problem_count);
+#ifdef DebugOn
       if (paramater_count != 2) throw "Invalid paramaters.";
+#endif
       ICPCManager::API::StartCompetition(duration_time, problem_count);
       break;
     }
@@ -750,11 +794,15 @@ inline void Excute(const char *const command) {
       break;
     }
     default: {
+#ifdef DebugOn
       throw "Unknown command.";
+#endif
     }
   }
+#ifdef DebugOn
   if (BackEnd::competition_status != BackEnd::kNotStarted)
     BackEnd::CheckAccordanceBetweenScoreBoardAndValueInScoreBoard();
+#endif
 }
 }  // namespace API
 }  // namespace ICPCManager
