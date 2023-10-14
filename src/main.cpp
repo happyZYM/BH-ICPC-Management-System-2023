@@ -100,6 +100,9 @@ template<typename A_t,typename B_t,typename C_t,typename D_t> inline void write(
 #endif
 // clang-format on
 // end of fast-read libarary
+#include<ext/pb_ds/tree_policy.hpp>
+#include<ext/pb_ds/assoc_container.hpp>
+
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -227,7 +230,11 @@ inline bool operator<(const ScoreBoredElementType &a,
   }
   return team_data[a.tid].name_rank < team_data[b.tid].name_rank;
 }
-std::set<ScoreBoredElementType> score_board;
+// std::set<ScoreBoredElementType> score_board;
+__gnu_pbds::tree<ScoreBoredElementType,__gnu_pbds::null_type,std::less<ScoreBoredElementType>,__gnu_pbds::rb_tree_tag> score_board;
+std::vector<int> teams_to_be_updated;
+std::vector<bool> teams_not_latest;
+std::vector<ScoreBoredElementType> value_in_score_board;
 /**
  * @brief the definition of function AddTeam.
  * @param team_name the name of the team to be added.
@@ -275,13 +282,17 @@ void StartCompetition(int duration_time, int problem_count) {
   for (int i = 0; i < team_number; i++)
     team_data[name_rank[i].second].name_rank = i;
   /*init the score board*/
+  value_in_score_board.resize(team_number + 1);
   for (int i = 1; i <= team_number; i++) {
     score_board.insert(ScoreBoredElementType(i, 0, 0));
+    value_in_score_board[i]=ScoreBoredElementType(i, 0, 0);
   }
   int cnt = 0;
   for (auto it = score_board.begin(); it != score_board.end(); ++it) {
     team_data[it->tid].rank = ++cnt;
   }
+  teams_to_be_updated.reserve(team_number + 1);
+  teams_not_latest.resize(team_number + 1);
   write("[Info]Competition starts.\n");
 }
 inline void Submit(char problem_name, char *team_name,
@@ -312,7 +323,9 @@ inline void Submit(char problem_name, char *team_name,
       if (competition_status == kNormalRunning) {
         team_data[team_id].already_passed_before_block[problem_name - 'A'] =
             true;
-        // team_data[team_id].pass_time_before_freeze.insert(time);
+        if(teams_not_latest[team_id]==false)
+          teams_to_be_updated.push_back(team_id);
+        teams_not_latest[team_id] = true;
       }
       break;
     }
@@ -333,18 +346,36 @@ inline void Submit(char problem_name, char *team_name,
 void FlushScoreBoard(bool show_info = true, bool rebuild = true) {
   // rebuild=false;
   if (rebuild) {
-    score_board.clear();
-    for (int i = 1; i <= team_number; i++) {
+    // score_board.clear();
+    // for (int i = 1; i <= team_number; i++) {
+    //   int score = 0, penalty = 0;
+    //   for (int j = 0; j < total_number_of_problems; j++) {
+    //     if (team_data[i].already_passed_before_block[j]) {
+    //       penalty += team_data[i].first_pass_time[j] +
+    //                  team_data[i].try_times_before_pass[j] * 20;
+    //       score++;
+    //     }
+    //   }
+    //   score_board.insert(ScoreBoredElementType(i, score, penalty));
+    //   value_in_score_board[i]=ScoreBoredElementType(i, score, penalty);
+    // }
+    for(int i=0;i<teams_to_be_updated.size();i++)
+    {
+      int tid=teams_to_be_updated[i];
       int score = 0, penalty = 0;
       for (int j = 0; j < total_number_of_problems; j++) {
-        if (team_data[i].already_passed_before_block[j]) {
-          penalty += team_data[i].first_pass_time[j] +
-                     team_data[i].try_times_before_pass[j] * 20;
+        if (team_data[tid].already_passed_before_block[j]) {
+          penalty += team_data[tid].first_pass_time[j] +
+                     team_data[tid].try_times_before_pass[j] * 20;
           score++;
         }
       }
-      score_board.insert(ScoreBoredElementType(i, score, penalty));
+      score_board.erase(value_in_score_board[tid]);
+      score_board.insert(ScoreBoredElementType(tid, score, penalty));
+      value_in_score_board[tid]=ScoreBoredElementType(tid, score, penalty);
+      teams_not_latest[tid]=false;
     }
+    teams_to_be_updated.clear();
   }
   int cnt = 0;
   for (auto it = score_board.begin(); it != score_board.end(); ++it) {
@@ -428,11 +459,15 @@ void ScrollScoreBoard() {
           int score = it->score + 1;
           team_data[it->tid].pass_time_before_freeze.insert(
               team_data[it->tid].first_pass_time[i]);
+          if(teams_not_latest[it->tid]==false)
+            teams_to_be_updated.push_back(it->tid);
+          teams_not_latest[it->tid] = true;
           int penalty = it->penalty + team_data[it->tid].first_pass_time[i] +
                         20 * team_data[it->tid].try_times_before_pass[i];
           int tid = it->tid;
           score_board.erase(it);
           score_board.insert(ScoreBoredElementType(tid, score, penalty));
+          value_in_score_board[tid]=ScoreBoredElementType(tid, score, penalty);
           if (!is_first && ScoreBoredElementType(tid, score, penalty) < nval) {
             auto newp =
                 score_board.find(ScoreBoredElementType(tid, score, penalty));
