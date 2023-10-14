@@ -208,14 +208,15 @@ inline bool operator<(const ScoreBoredElementType &a,
                       const ScoreBoredElementType &b) {
   if (a.score != b.score) return a.score > b.score;
   if (a.penalty != b.penalty) return a.penalty < b.penalty;
-  if (team_data[a.tid].pass_time_before_freeze.size() !=
-      team_data[b.tid].pass_time_before_freeze.size()) {
-    char *str = new char[1005];
-    sprintf(str, "pass_time_before_freeze size not equal!\n%d %d\n%d %d\n",
-            team_data[a.tid].pass_time_before_freeze.size(),
-            team_data[b.tid].pass_time_before_freeze.size(), a.score, b.score);
-    throw str;
-  }
+  // if (team_data[a.tid].pass_time_before_freeze.size() !=
+  //     team_data[b.tid].pass_time_before_freeze.size()) {
+  //   char *str = new char[1005];
+  //   sprintf(str, "pass_time_before_freeze size not equal!\n%d %d\n%d %d\n",
+  //           team_data[a.tid].pass_time_before_freeze.size(),
+  //           team_data[b.tid].pass_time_before_freeze.size(), a.score,
+  //           b.score);
+  //   throw str;
+  // }
   for (auto ita = team_data[a.tid].pass_time_before_freeze.begin(),
             itb = team_data[b.tid].pass_time_before_freeze.begin();
        ita != team_data[a.tid].pass_time_before_freeze.end() &&
@@ -223,8 +224,6 @@ inline bool operator<(const ScoreBoredElementType &a,
        ++ita, ++itb) {
     if (*ita != *itb) return *ita < *itb;
   }
-  // if (team_data[a.tid].name == team_data[b.tid].name)
-  // throw "teams in score bored should have distinctive names!";
   return team_data[a.tid].name < team_data[b.tid].name;
 }
 std::set<ScoreBoredElementType> score_board;
@@ -322,18 +321,20 @@ inline void Submit(char problem_name, char *team_name,
     }
   }
 }
-void FlushScoreBoard(bool show_info = true) {
-  score_board.clear();
-  for (int i = 1; i <= team_number; i++) {
-    int score = 0, penalty = 0;
-    for (int j = 0; j < total_number_of_problems; j++) {
-      if (team_data[i].already_passed_before_block[j]) {
-        penalty += team_data[i].first_pass_time[j] +
-                   team_data[i].try_times_before_pass[j] * 20;
-        score++;
+void FlushScoreBoard(bool show_info = true, bool rebuild = true) {
+  if (rebuild) {
+    score_board.clear();
+    for (int i = 1; i <= team_number; i++) {
+      int score = 0, penalty = 0;
+      for (int j = 0; j < total_number_of_problems; j++) {
+        if (team_data[i].already_passed_before_block[j]) {
+          penalty += team_data[i].first_pass_time[j] +
+                     team_data[i].try_times_before_pass[j] * 20;
+          score++;
+        }
       }
+      score_board.insert(ScoreBoredElementType(i, score, penalty));
     }
-    score_board.insert(ScoreBoredElementType(i, score, penalty));
   }
   int cnt = 0;
   for (auto it = score_board.begin(); it != score_board.end(); ++it) {
@@ -401,6 +402,7 @@ void ScrollScoreBoard() {
     auto nval = *nxt;
     for (int i = 0; i < total_number_of_problems; i++) {
       if (team_data[it->tid].is_frozen[i]) {
+        /*process a frozen problem*/
         frozen_found = true;
         team_data[it->tid].is_frozen[i] = false;
         team_data[it->tid].already_passed_before_block[i] |=
@@ -442,7 +444,7 @@ void ScrollScoreBoard() {
   }
 finish_scroll:;
   competition_status = kNormalRunning;
-  FlushScoreBoard(false);
+  FlushScoreBoard(false, false);
   CheckDataAfterScroll();
   PrintScoreBoard();
 }
@@ -668,6 +670,7 @@ inline void Excute(const char *const command) {
 int main() {
   // freopen("tmp/pro.in","r",stdin);
   // freopen("tmp/pro.out","w",stdout);
+  ICPCManager::BackEnd::team_data.reserve(10005);
   char command[1024];
   try {
     while (true) {

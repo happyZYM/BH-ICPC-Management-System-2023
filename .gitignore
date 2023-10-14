@@ -1,2 +1,4 @@
 build/*
 tmp/*
+*/gmon.out
+gmon.out
