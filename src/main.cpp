@@ -100,13 +100,12 @@ template<typename A_t,typename B_t,typename C_t,typename D_t> inline void write(
 #endif
 // clang-format on
 // end of fast-read libarary
-#include<ext/pb_ds/tree_policy.hpp>
-#include<ext/pb_ds/assoc_container.hpp>
-
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <ext/pb_ds/assoc_container.hpp>
+#include <ext/pb_ds/tree_policy.hpp>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -179,6 +178,7 @@ struct RawTeamDataType {
   int rank;
   int name_rank;
   std::multiset<int, std::greater<int>> pass_time_before_freeze;
+  std::multiset<int, std::greater<int>> pass_time_before_freeze_new;
   int query_status_index[4], query_problem_index[26],
       query_problem_status_index[26][4];
   // as index in submissions are 0 based, so we use -1 to indicate that the team
@@ -230,8 +230,10 @@ inline bool operator<(const ScoreBoredElementType &a,
   }
   return team_data[a.tid].name_rank < team_data[b.tid].name_rank;
 }
-// std::set<ScoreBoredElementType> score_board;
-__gnu_pbds::tree<ScoreBoredElementType,__gnu_pbds::null_type,std::less<ScoreBoredElementType>,__gnu_pbds::rb_tree_tag> score_board;
+std::set<ScoreBoredElementType> score_board;
+// __gnu_pbds::tree<ScoreBoredElementType, __gnu_pbds::null_type,
+//                  std::less<ScoreBoredElementType>, __gnu_pbds::rb_tree_tag>
+// score_board;
 std::vector<int> teams_to_be_updated;
 std::vector<bool> teams_not_latest;
 std::vector<ScoreBoredElementType> value_in_score_board;
@@ -285,7 +287,9 @@ void StartCompetition(int duration_time, int problem_count) {
   value_in_score_board.resize(team_number + 1);
   for (int i = 1; i <= team_number; i++) {
     score_board.insert(ScoreBoredElementType(i, 0, 0));
-    value_in_score_board[i]=ScoreBoredElementType(i, 0, 0);
+    value_in_score_board[i] = ScoreBoredElementType(i, 0, 0);
+    if (score_board.find(value_in_score_board[i]) == score_board.end())
+      throw "cannot find tid in score_board immediately after insert in func StartCompetition";
   }
   int cnt = 0;
   for (auto it = score_board.begin(); it != score_board.end(); ++it) {
@@ -317,13 +321,13 @@ inline void Submit(char problem_name, char *team_name,
       if (team_data[team_id].already_passed[problem_name - 'A'] == false) {
         team_data[team_id].first_pass_time[problem_name - 'A'] = time;
         if (competition_status == kNormalRunning)
-          team_data[team_id].pass_time_before_freeze.insert(time);
+          team_data[team_id].pass_time_before_freeze_new.insert(time);
       }
       team_data[team_id].already_passed[problem_name - 'A'] = true;
       if (competition_status == kNormalRunning) {
         team_data[team_id].already_passed_before_block[problem_name - 'A'] =
             true;
-        if(teams_not_latest[team_id]==false)
+        if (teams_not_latest[team_id] == false)
           teams_to_be_updated.push_back(team_id);
         teams_not_latest[team_id] = true;
       }
@@ -359,9 +363,8 @@ void FlushScoreBoard(bool show_info = true, bool rebuild = true) {
     //   score_board.insert(ScoreBoredElementType(i, score, penalty));
     //   value_in_score_board[i]=ScoreBoredElementType(i, score, penalty);
     // }
-    for(int i=0;i<teams_to_be_updated.size();i++)
-    {
-      int tid=teams_to_be_updated[i];
+    for (int i = 0; i < teams_to_be_updated.size(); i++) {
+      int tid = teams_to_be_updated[i];
       int score = 0, penalty = 0;
       for (int j = 0; j < total_number_of_problems; j++) {
         if (team_data[tid].already_passed_before_block[j]) {
@@ -370,12 +373,26 @@ void FlushScoreBoard(bool show_info = true, bool rebuild = true) {
           score++;
         }
       }
+      if (score_board.find(value_in_score_board[tid]) == score_board.end()) {
+        char *error_message = new char[1005];
+        sprintf(error_message,
+                "cannot find tid in score_board immediately before erase in "
+                "func FlushScoreBoard, tid=%d , score=%d , penalty=%d, "
+                "previous tid=%d\n",
+                tid, value_in_score_board[tid].score,
+                value_in_score_board[tid].penalty,
+                value_in_score_board[tid].tid);
+        throw error_message;
+      }
       score_board.erase(value_in_score_board[tid]);
+      team_data[tid].pass_time_before_freeze=team_data[tid].pass_time_before_freeze_new;
       score_board.insert(ScoreBoredElementType(tid, score, penalty));
-      value_in_score_board[tid]=ScoreBoredElementType(tid, score, penalty);
-      teams_not_latest[tid]=false;
+      value_in_score_board[tid] = ScoreBoredElementType(tid, score, penalty);
+      teams_not_latest[tid] = false;
     }
     teams_to_be_updated.clear();
+    if (score_board.size() != team_number)
+      throw "score_board.size()!=team_number";
   }
   int cnt = 0;
   for (auto it = score_board.begin(); it != score_board.end(); ++it) {
@@ -457,17 +474,21 @@ void ScrollScoreBoard() {
           throw "already_passed not equal to first_pass_time < kIntInf";
         if (team_data[it->tid].already_passed[i]) {
           int score = it->score + 1;
-          team_data[it->tid].pass_time_before_freeze.insert(
+          team_data[it->tid].pass_time_before_freeze_new.insert(
               team_data[it->tid].first_pass_time[i]);
-          if(teams_not_latest[it->tid]==false)
+          if (teams_not_latest[it->tid] == false)
             teams_to_be_updated.push_back(it->tid);
           teams_not_latest[it->tid] = true;
           int penalty = it->penalty + team_data[it->tid].first_pass_time[i] +
                         20 * team_data[it->tid].try_times_before_pass[i];
           int tid = it->tid;
           score_board.erase(it);
+          team_data[it->tid].pass_time_before_freeze=team_data[it->tid].pass_time_before_freeze_new;
           score_board.insert(ScoreBoredElementType(tid, score, penalty));
-          value_in_score_board[tid]=ScoreBoredElementType(tid, score, penalty);
+          value_in_score_board[tid] =
+              ScoreBoredElementType(tid, score, penalty);
+          if (score_board.find(value_in_score_board[tid]) == score_board.end())
+            throw "cannot find tid in score_board immediately after insert in func ScrollScoreBoard";
           if (!is_first && ScoreBoredElementType(tid, score, penalty) < nval) {
             auto newp =
                 score_board.find(ScoreBoredElementType(tid, score, penalty));
@@ -557,6 +578,28 @@ void QuerySubmission(char *team_name, char *problem_name, char *submit_status) {
   }
   write(team_name, ' ', res.problem_name, ' ',
         StatusType2Text[res.status].c_str(), ' ', res.submit_time, "\n");
+}
+void PrintStatus() { 
+  for(int i=1;i<=team_number;i++)
+  {
+    fprintf(stderr,"team %d: %s\n",i,team_data[i].name.c_str());
+    /*value_in_score_board*/
+    fprintf(stderr,"value_in_score_board: %d %d %d\n",value_in_score_board[i].tid,value_in_score_board[i].score,value_in_score_board[i].penalty);
+  }
+  /*score_board*/
+  fprintf(stderr,"score_board:\n");
+  for(auto it=score_board.begin();it!=score_board.end();++it)
+  {
+    fprintf(stderr,"%d %d %d\n",it->tid,it->score,it->penalty);
+  }
+ }
+void CheckAccordanceBetweenScoreBoardAndValueInScoreBoard() {
+  for (int i = 1; i <= team_number; i++) {
+    if (score_board.find(value_in_score_board[i]) == score_board.end()) {
+      PrintStatus();
+      throw "cannot find tid in score_board immediately after insert in func CheckAccordanceBetweenScoreBoardAndValueInScoreBoard";
+    }
+  }
 }
 }  // namespace BackEnd
 
@@ -710,12 +753,14 @@ inline void Excute(const char *const command) {
       throw "Unknown command.";
     }
   }
+  if (BackEnd::competition_status != BackEnd::kNotStarted)
+    BackEnd::CheckAccordanceBetweenScoreBoardAndValueInScoreBoard();
 }
 }  // namespace API
 }  // namespace ICPCManager
 int main() {
-  // freopen("tmp/pro.in","r",stdin);
-  // freopen("tmp/pro.out","w",stdout);
+  // freopen("tmp/pro.in", "r", stdin);
+  // freopen("tmp/pro.out", "w", stdout);
   ICPCManager::BackEnd::team_data.reserve(10005);
   char command[1024];
   try {
