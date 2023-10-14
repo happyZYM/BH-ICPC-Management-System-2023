@@ -494,15 +494,22 @@ void ScrollScoreBoard() {
   auto it = score_board.end();
   --it;
   while (true) {
+    /**
+     * this `while (true)` is the main loop, for each time it will try to
+     * unfroze at most one problem
+     */
     auto nxt = it;
     bool is_first = false;
     bool frozen_found = false;
     if (it == score_board.begin()) is_first = true;
     if (!is_first) --nxt;
     auto nval = *nxt;
+    // When a frozen problem is found, as the iterator may be effectless, we
+    // need to use nval to determine where the pointer should be moved to. By
+    // default, the pointer will be moved to the next team.
     for (int i = 0; i < total_number_of_problems; i++) {
       if (team_data[it->tid].is_frozen[i]) {
-        /*process a frozen problem*/
+        /*start processing a frozen problem*/
         frozen_found = true;
         team_data[it->tid].is_frozen[i] = false;
         team_data[it->tid].already_passed_before_block[i] |=
@@ -516,9 +523,8 @@ void ScrollScoreBoard() {
           throw "already_passed not equal to first_pass_time < kIntInf";
 #endif
         if (team_data[it->tid].already_passed[i]) {
+          /*now we began to process a newly accepted problem*/
           int score = it->score + 1;
-          // team_data[it->tid].pass_time_before_freeze_new.insert(
-          //     team_data[it->tid].first_pass_time[i]);
           if (teams_not_latest[it->tid] == false)
             teams_to_be_updated.push_back(it->tid);
           teams_not_latest[it->tid] = true;
@@ -526,7 +532,6 @@ void ScrollScoreBoard() {
                         20 * team_data[it->tid].try_times_before_pass[i];
           int tid = it->tid;
           score_board.erase(it);
-          // team_data[it->tid].pass_time_before_freeze=team_data[it->tid].pass_time_before_freeze_new;
           team_data[tid].acceptence_tracked[i] = true;
           auto &pass_time_before_freeze =
               team_data[tid].pass_time_before_freeze;
@@ -548,24 +553,48 @@ void ScrollScoreBoard() {
             throw "cannot find tid in score_board immediately after insert in func ScrollScoreBoard";
 #endif
           if (!is_first && ScoreBoredElementType(tid, score, penalty) < nval) {
+            /*1. the team replace another team*/
             auto newp =
                 score_board.find(ScoreBoredElementType(tid, score, penalty));
             newp++;
             write(team_id_to_name[tid].c_str(), ' ',
                   team_id_to_name[newp->tid].c_str(), ' ', score, ' ', penalty,
                   '\n');
+            // In this case nval remains its default value
           } else
             nval = ScoreBoredElementType(tid, score, penalty);
+          // 2. has new passed problem but the rank is not changed, current team
+          // may have another frozen problem, so nval changed accordingly
         } else
           nval = *it;
+        // 3. no new passed problem and the rank is not changed, current team
+        // may have another problem, so nval changed accordingly
+        /**
+         * When current team has no frozen problems, this whole piece of code
+         * won't be executed. And the last three sentences of the main loop will
+         * be executed to move pointer to next team or end scrolling.
+         */
         it = score_board.find(nval);
         if (it == score_board.end()) goto finish_scroll;
+        // special process to avoid mistakes when current team ranks first(it
+        // seems useless)
+        /**
+         * This piece of code has been executed means current round of scrolling
+         * has done. So we need to execute `goto next_round;` and move the
+         * pointer to start next round or end scrolling.
+         */
         goto next_round;
       }
     }
-    it = nxt;
+    it = nxt;  // the defualt position to move the pointer to when no frozen
+               // problem is found
+    /** When current team has no frozen problems, the pointer will be moved to
+     * the default position. The `goto next_round;` setence skips `it=nxt;` to
+     * allow the pointer remains the position caculated in the last round.
+     */
   next_round:;
     if (is_first && !frozen_found) break;
+    // special process (this is surely useful)
   }
 finish_scroll:;
   competition_status = kNormalRunning;
