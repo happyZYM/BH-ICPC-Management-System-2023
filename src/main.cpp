@@ -178,7 +178,14 @@ struct RawTeamDataType {
   int id;
   int rank;
   int name_rank;
-  std::multiset<int, std::greater<int>> pass_time_before_freeze;
+  // std::multiset<int, std::greater<int>> pass_time_before_freeze;
+  int pass_time_before_freeze[27] = {kIntInf, kIntInf, kIntInf, kIntInf,
+                                     kIntInf, kIntInf, kIntInf, kIntInf,
+                                     kIntInf, kIntInf, kIntInf, kIntInf,
+                                     kIntInf, kIntInf, kIntInf, kIntInf,
+                                     kIntInf, kIntInf, kIntInf, kIntInf,
+                                     kIntInf, kIntInf, kIntInf, kIntInf,
+                                     kIntInf, kIntInf, kIntInf};
   int query_status_index[4], query_problem_index[26],
       query_problem_status_index[26][4];
   // as index in submissions are 0 based, so we use -1 to indicate that the team
@@ -223,14 +230,15 @@ inline bool operator<(const ScoreBoredElementType &a,
   //           b.score);
   //   throw str;
   // }
-  auto &TDA=team_data[a.tid];
-  auto &TDB=team_data[b.tid];
-  auto itae = TDA.pass_time_before_freeze.end();
-  auto itbe = TDB.pass_time_before_freeze.end();
-  for (auto ita = TDA.pass_time_before_freeze.begin(),
-            itb = TDB.pass_time_before_freeze.begin();
-       ita != itae; ++ita, ++itb) {
-    if (*ita != *itb) return *ita < *itb;
+  auto &TDA = team_data[a.tid];
+  auto &TDB = team_data[b.tid];
+  auto &ta = TDA.pass_time_before_freeze;
+  auto &tb = TDB.pass_time_before_freeze;
+  int p = 0;
+  if (ta[p + 16] == kIntInf) p += 17;
+  if (ta[p + 8] == kIntInf) p += 9;
+  for (; p < 27; p++) {
+    if (ta[p] ^ tb[p]) return ta[p] < tb[p];
   }
   return TDA.name_rank < TDB.name_rank;
 }
@@ -400,9 +408,19 @@ void FlushScoreBoard(bool show_info = true, bool rebuild = true) {
 #endif
       score_board.erase(value_in_score_board[tid]);
       // team_data[tid].pass_time_before_freeze=team_data[tid].pass_time_before_freeze_new;
-      for (int j : new_problems_accepted)
-        team_data[tid].pass_time_before_freeze.insert(
-            team_data[tid].first_pass_time[j]);
+      for (int j : new_problems_accepted) {
+        auto &pass_time_before_freeze = team_data[tid].pass_time_before_freeze;
+        int p = 0;
+        int v = team_data[tid].first_pass_time[j];
+        for (; p < 26; p++) {
+          if (pass_time_before_freeze[p + 1] <= v) {
+            pass_time_before_freeze[p] = v;
+            break;
+          }
+          pass_time_before_freeze[p] = pass_time_before_freeze[p + 1];
+        }
+        if (p == 26) pass_time_before_freeze[26] = v;
+      }
       score_board.insert(ScoreBoredElementType(tid, score, penalty));
       value_in_score_board[tid] = ScoreBoredElementType(tid, score, penalty);
       teams_not_latest[tid] = false;
@@ -510,8 +528,18 @@ void ScrollScoreBoard() {
           score_board.erase(it);
           // team_data[it->tid].pass_time_before_freeze=team_data[it->tid].pass_time_before_freeze_new;
           team_data[tid].acceptence_tracked[i] = true;
-          team_data[tid].pass_time_before_freeze.insert(
-              team_data[tid].first_pass_time[i]);
+          auto &pass_time_before_freeze =
+              team_data[tid].pass_time_before_freeze;
+          int p = 0;
+          int v = team_data[tid].first_pass_time[i];
+          for (; p < 26; p++) {
+            if (pass_time_before_freeze[p + 1] <= v) {
+              pass_time_before_freeze[p] = v;
+              break;
+            }
+            pass_time_before_freeze[p] = pass_time_before_freeze[p + 1];
+          }
+          if (p == 26) pass_time_before_freeze[26] = v;
           score_board.insert(ScoreBoredElementType(tid, score, penalty));
           value_in_score_board[tid] =
               ScoreBoredElementType(tid, score, penalty);
