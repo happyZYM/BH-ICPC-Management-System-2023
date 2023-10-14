@@ -211,6 +211,7 @@ struct ScoreBoredElementType {
 };
 inline bool operator<(const ScoreBoredElementType &a,
                       const ScoreBoredElementType &b) {
+  if (a.tid == b.tid) return false;
   if (a.score != b.score) return a.score > b.score;
   if (a.penalty != b.penalty) return a.penalty < b.penalty;
   // if (team_data[a.tid].pass_time_before_freeze.size() !=
@@ -222,19 +223,21 @@ inline bool operator<(const ScoreBoredElementType &a,
   //           b.score);
   //   throw str;
   // }
-  for (auto ita = team_data[a.tid].pass_time_before_freeze.begin(),
-            itb = team_data[b.tid].pass_time_before_freeze.begin();
-       ita != team_data[a.tid].pass_time_before_freeze.end() &&
-       itb != team_data[b.tid].pass_time_before_freeze.end();
-       ++ita, ++itb) {
+  auto &TDA=team_data[a.tid];
+  auto &TDB=team_data[b.tid];
+  auto itae = TDA.pass_time_before_freeze.end();
+  auto itbe = TDB.pass_time_before_freeze.end();
+  for (auto ita = TDA.pass_time_before_freeze.begin(),
+            itb = TDB.pass_time_before_freeze.begin();
+       ita != itae; ++ita, ++itb) {
     if (*ita != *itb) return *ita < *itb;
   }
-  return team_data[a.tid].name_rank < team_data[b.tid].name_rank;
+  return TDA.name_rank < TDB.name_rank;
 }
 // std::set<ScoreBoredElementType> score_board;
 __gnu_pbds::tree<ScoreBoredElementType, __gnu_pbds::null_type,
                  std::less<ScoreBoredElementType>, __gnu_pbds::rb_tree_tag>
-score_board;
+    score_board;
 std::vector<int> teams_to_be_updated;
 std::vector<bool> teams_not_latest;
 std::vector<ScoreBoredElementType> value_in_score_board;
@@ -295,7 +298,8 @@ void StartCompetition(int duration_time, int problem_count) {
 #endif
   }
   int cnt = 0;
-  for (auto it = score_board.begin(); it != score_board.end(); ++it) {
+  auto ite = score_board.end();
+  for (auto it = score_board.begin(); it != ite; ++it) {
     team_data[it->tid].rank = ++cnt;
   }
   teams_to_be_updated.reserve(team_number + 1);
@@ -410,7 +414,8 @@ void FlushScoreBoard(bool show_info = true, bool rebuild = true) {
 #endif
   }
   int cnt = 0;
-  for (auto it = score_board.begin(); it != score_board.end(); ++it) {
+  auto ite = score_board.end();
+  for (auto it = score_board.begin(); it != ite; ++it) {
     team_data[it->tid].rank = ++cnt;
   }
   if (show_info) write("[Info]Flush scoreboard.\n");
@@ -424,7 +429,8 @@ void FreezeScoreBoard() {
   write("[Info]Freeze scoreboard.\n");
 }
 void PrintScoreBoard() {
-  for (auto it = score_board.begin(); it != score_board.end(); ++it) {
+  auto ite = score_board.end();
+  for (auto it = score_board.begin(); it != ite; ++it) {
     write(team_data[it->tid].name.c_str());
     write(' ', team_data[it->tid].rank);
     write(' ', it->score);
