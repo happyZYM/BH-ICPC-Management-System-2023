@@ -327,6 +327,7 @@ __gnu_pbds::tree<ScoreBoredElementType, __gnu_pbds::null_type,
 std::vector<int> teams_to_be_updated;
 std::vector<bool> teams_not_latest;
 std::vector<ScoreBoredElementType> value_in_score_board;
+std::vector<int> scroll_cursor;
 /**
  * @brief the definition of function AddTeam.
  * @param team_name the name of the team to be added.
@@ -390,6 +391,7 @@ void StartCompetition(int duration_time, int problem_count) {
   }
   teams_to_be_updated.reserve(team_number + 1);
   teams_not_latest.resize(team_number + 1);
+  scroll_cursor.resize(team_number + 1);
   write("[Info]Competition starts.\n");
 }
 inline void Submit(char problem_name, char *team_name,
@@ -553,6 +555,7 @@ void ScrollScoreBoard() {
   PrintScoreBoard();
   auto it = score_board.end();
   --it;
+  for (int i = 1; i <= team_number; i++) scroll_cursor[i] = 0;
   while (true) {
     /**
      * this `while (true)` is the main loop, for each time it will try to
@@ -567,7 +570,7 @@ void ScrollScoreBoard() {
     // When a frozen problem is found, as the iterator may be effectless, we
     // need to use nval to determine where the pointer should be moved to. By
     // default, the pointer will be moved to the next team.
-    for (int i = 0; i < total_number_of_problems; i++) {
+    for (int &i = scroll_cursor[it->tid]; i < total_number_of_problems; i++) {
       if (team_data[it->tid].is_frozen[i]) {
         /*start processing a frozen problem*/
         frozen_found = true;
@@ -774,7 +777,7 @@ void AddTeam(const char *const team_name) {
           team_name[i] >= 'A' && team_name[i] <= 'Z' ||
           team_name[i] >= '0' && team_name[i] <= '9' || team_name[i] == '_'))
       throw "Team name contains invalid characters.";
-  // All checks passed.
+      // All checks passed.
 #endif
   BackEnd::AddTeam(team_name);
 }
