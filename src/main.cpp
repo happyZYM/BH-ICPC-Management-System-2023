@@ -31,74 +31,162 @@
 /**
  * the following is a mannually embedded fast-read libarary.
  */
-// clang-format off
-#include<cstdio>
-#define unlikely(x)     __builtin_expect(!!(x), 0)
-struct char_reader
-{
-	FILE* f; char *buf,*p1,*p2; int size;
-	char_reader(FILE* fin,int bufsize=1<<16) { f=fin; size=bufsize; p1=p2=0; buf=new char[size]; }
-	~char_reader() { delete []buf; }
-	inline int operator()() { return p1==p2&&(p2=(p1=buf)+fread(buf,1,size,f),p1==p2)?EOF:*p1++; }
+#include <cstdio>
+#define unlikely(x) __builtin_expect(!!(x), 0)
+struct char_reader {
+  FILE *f;
+  char *buf, *p1, *p2;
+  int size;
+  char_reader(FILE *fin, int bufsize = 1 << 16) {
+    f = fin;
+    size = bufsize;
+    p1 = p2 = 0;
+    buf = new char[size];
+  }
+  ~char_reader() { delete[] buf; }
+  inline int operator()() {
+    return p1 == p2 && (p2 = (p1 = buf) + fread(buf, 1, size, f), p1 == p2)
+               ? EOF
+               : *p1++;
+  }
 };
-struct char_writer
-{
-	FILE* f; char *buf,*p,*end; int size;
-	char_writer(FILE* fout,int bufsize=1<<16) { f=fout; size=bufsize; buf=new char[size]; p=buf; end=buf+bufsize; }
-	~char_writer() { fwrite(buf,p-buf,1,f); delete []buf; }
-	inline char operator()(char ch)
-	{
-		if(unlikely(end==p)) { fwrite(buf,end-buf,1,f); p=buf; }
-		return *p++=ch;
-	}
+struct char_writer {
+  FILE *f;
+  char *buf, *p, *end;
+  int size;
+  char_writer(FILE *fout, int bufsize = 1 << 16) {
+    f = fout;
+    size = bufsize;
+    buf = new char[size];
+    p = buf;
+    end = buf + bufsize;
+  }
+  ~char_writer() {
+    fwrite(buf, p - buf, 1, f);
+    delete[] buf;
+  }
+  inline char operator()(char ch) {
+    if (unlikely(end == p)) {
+      fwrite(buf, end - buf, 1, f);
+      p = buf;
+    }
+    return *p++ = ch;
+  }
 };
 char_reader gch(stdin);
 char_writer wch(stdout);
-template<typename T> inline int read(T& t)
-{
-	bool f=false; int ch; while(ch=gch(),!((ch>='0'&&ch<='9')||ch=='-')) { if(ch==EOF) return 0; }
-	t=0;
-	if(ch=='-') f=true,ch=gch(); t=ch^48; while(ch=gch(),ch>='0'&&ch<='9') t=(t<<3)+(t<<1)+(ch^48);
-	if(f) t=-t;
-	return 1;
+template <typename T>
+inline int read(T &t) {
+  bool f = false;
+  int ch;
+  while (ch = gch(), !((ch >= '0' && ch <= '9') || ch == '-')) {
+    if (ch == EOF) return 0;
+  }
+  t = 0;
+  if (ch == '-') f = true, ch = gch();
+  t = ch ^ 48;
+  while (ch = gch(), ch >= '0' && ch <= '9')
+    t = (t << 3) + (t << 1) + (ch ^ 48);
+  if (f) t = -t;
+  return 1;
 }
-inline int read(char &c)
-{
-	c=0; int ch; while(ch=gch(),(ch==' '||ch=='\n'||ch=='\r'||ch=='\t')) { if(ch==EOF) return 0; } c=ch;
-	return 1;
+inline int read(char &c) {
+  c = 0;
+  int ch;
+  while (ch = gch(), (ch == ' ' || ch == '\n' || ch == '\r' || ch == '\t')) {
+    if (ch == EOF) return 0;
+  }
+  c = ch;
+  return 1;
 }
-inline int read(char *s)
-{
-	int ch; while(ch=gch(),(ch==' '||ch=='\n'||ch=='\r'||ch=='\t')) { if(ch==EOF) return 0; }
-	*s++=ch; while(ch=gch(),!(ch==' '||ch=='\n'||ch=='\r'||ch=='\t')&&ch!=EOF) *s++=ch; *s++=0;
-	return 1;
-} inline int read(const char *s) { return read((char*)s); }
-inline int readline(char *s)
-{
-	int ch; while(ch=gch(),(ch==' '||ch=='\n'||ch=='\r'||ch=='\t')) { if(ch==EOF) return 0; }
-	*s++=ch; while(ch=gch(),!(ch=='\n'||ch=='\r')&&ch!=EOF) *s++=ch; *s++=0;
-	return 1;
-} inline int readline(const char *s) { return readline((char*)s); }
-template<typename T> inline void write(T t)
-{
-	int stk[20],cnt=0;
-	if(t==0) { wch('0'); return; } if(t<0) { wch('-'); t=-t; }
-	while(t>0) { stk[cnt++]=t%10; t/=10; } while(cnt) wch(stk[--cnt]+'0');
+inline int read(char *s) {
+  int ch;
+  while (ch = gch(), (ch == ' ' || ch == '\n' || ch == '\r' || ch == '\t')) {
+    if (ch == EOF) return 0;
+  }
+  *s++ = ch;
+  while (ch = gch(),
+         !(ch == ' ' || ch == '\n' || ch == '\r' || ch == '\t') && ch != EOF)
+    *s++ = ch;
+  *s++ = 0;
+  return 1;
+}
+inline int read(const char *s) { return read((char *)s); }
+inline int readline(char *s) {
+  int ch;
+  while (ch = gch(), (ch == ' ' || ch == '\n' || ch == '\r' || ch == '\t')) {
+    if (ch == EOF) return 0;
+  }
+  *s++ = ch;
+  while (ch = gch(), !(ch == '\n' || ch == '\r') && ch != EOF) *s++ = ch;
+  *s++ = 0;
+  return 1;
+}
+inline int readline(const char *s) { return readline((char *)s); }
+template <typename T>
+inline void write(T t) {
+  int stk[20], cnt = 0;
+  if (t == 0) {
+    wch('0');
+    return;
+  }
+  if (t < 0) {
+    wch('-');
+    t = -t;
+  }
+  while (t > 0) {
+    stk[cnt++] = t % 10;
+    t /= 10;
+  }
+  while (cnt) wch(stk[--cnt] + '0');
 }
 inline void write(char t) { wch(t); }
-inline void write(char *s) { while(*s) wch(*s++); } inline void write(const char *s) { write((char*)s); }
+inline void write(char *s) {
+  while (*s) wch(*s++);
+}
+inline void write(const char *s) { write((char *)s); }
 #if __cplusplus >= 201103L
-template<typename T,typename... Args> inline int read(T& t,Args&... args) { return read(t)+read(args...); }
-template<typename T,typename... Args> inline void write(T t,Args... args) { write(t); write(args...); }
+template <typename T, typename... Args>
+inline int read(T &t, Args &...args) {
+  return read(t) + read(args...);
+}
+template <typename T, typename... Args>
+inline void write(T t, Args... args) {
+  write(t);
+  write(args...);
+}
 #else
-template<typename A_t,typename B_t> inline int read(A_t &a,B_t &b) { return read(a)+read(b); }
-template<typename A_t,typename B_t,typename C_t> inline int read(A_t &a,B_t &b,C_t &c) { return read(a)+read(b)+read(c); }
-template<typename A_t,typename B_t,typename C_t,typename D_t> inline int read(A_t &a,B_t &b,C_t &c,D_t &d) { return read(a)+read(b)+read(c)+read(d); }
-template<typename A_t,typename B_t> inline void write(A_t a,B_t b) { write(a); write(b); }
-template<typename A_t,typename B_t,typename C_t> inline void write(A_t a,B_t b,C_t c) { write(a); write(b); write(c); }
-template<typename A_t,typename B_t,typename C_t,typename D_t> inline void write(A_t a,B_t b,C_t c,D_t d) { write(a); write(b); write(c); write(d); }
+template <typename A_t, typename B_t>
+inline int read(A_t &a, B_t &b) {
+  return read(a) + read(b);
+}
+template <typename A_t, typename B_t, typename C_t>
+inline int read(A_t &a, B_t &b, C_t &c) {
+  return read(a) + read(b) + read(c);
+}
+template <typename A_t, typename B_t, typename C_t, typename D_t>
+inline int read(A_t &a, B_t &b, C_t &c, D_t &d) {
+  return read(a) + read(b) + read(c) + read(d);
+}
+template <typename A_t, typename B_t>
+inline void write(A_t a, B_t b) {
+  write(a);
+  write(b);
+}
+template <typename A_t, typename B_t, typename C_t>
+inline void write(A_t a, B_t b, C_t c) {
+  write(a);
+  write(b);
+  write(c);
+}
+template <typename A_t, typename B_t, typename C_t, typename D_t>
+inline void write(A_t a, B_t b, C_t c, D_t d) {
+  write(a);
+  write(b);
+  write(c);
+  write(d);
+}
 #endif
-// clang-format on
 // end of fast-read libarary
 // #define DebugOn
 #include <algorithm>
@@ -221,15 +309,6 @@ inline bool operator<(const ScoreBoredElementType &a,
   if (a.tid == b.tid) return false;
   if (a.score != b.score) return a.score > b.score;
   if (a.penalty != b.penalty) return a.penalty < b.penalty;
-  // if (team_data[a.tid].pass_time_before_freeze.size() !=
-  //     team_data[b.tid].pass_time_before_freeze.size()) {
-  //   char *str = new char[1005];
-  //   sprintf(str, "pass_time_before_freeze size not equal!\n%d %d\n%d %d\n",
-  //           team_data[a.tid].pass_time_before_freeze.size(),
-  //           team_data[b.tid].pass_time_before_freeze.size(), a.score,
-  //           b.score);
-  //   throw str;
-  // }
   auto &TDA = team_data[a.tid];
   auto &TDB = team_data[b.tid];
   auto &ta = TDA.pass_time_before_freeze;
@@ -242,7 +321,6 @@ inline bool operator<(const ScoreBoredElementType &a,
   }
   return TDA.name_rank < TDB.name_rank;
 }
-// std::set<ScoreBoredElementType> score_board;
 __gnu_pbds::tree<ScoreBoredElementType, __gnu_pbds::null_type,
                  std::less<ScoreBoredElementType>, __gnu_pbds::rb_tree_tag>
     score_board;
@@ -335,8 +413,6 @@ inline void Submit(char problem_name, char *team_name,
     case kAC: {
       if (team_data[team_id].already_passed[problem_name - 'A'] == false) {
         team_data[team_id].first_pass_time[problem_name - 'A'] = time;
-        // if (competition_status == kNormalRunning)
-        //   team_data[team_id].pass_time_before_freeze_new.insert(time);
       }
       team_data[team_id].already_passed[problem_name - 'A'] = true;
       if (competition_status == kNormalRunning) {
@@ -363,21 +439,7 @@ inline void Submit(char problem_name, char *team_name,
   }
 }
 void FlushScoreBoard(bool show_info = true, bool rebuild = true) {
-  // rebuild=false;
   if (rebuild) {
-    // score_board.clear();
-    // for (int i = 1; i <= team_number; i++) {
-    //   int score = 0, penalty = 0;
-    //   for (int j = 0; j < total_number_of_problems; j++) {
-    //     if (team_data[i].already_passed_before_block[j]) {
-    //       penalty += team_data[i].first_pass_time[j] +
-    //                  team_data[i].try_times_before_pass[j] * 20;
-    //       score++;
-    //     }
-    //   }
-    //   score_board.insert(ScoreBoredElementType(i, score, penalty));
-    //   value_in_score_board[i]=ScoreBoredElementType(i, score, penalty);
-    // }
     for (int i = 0; i < teams_to_be_updated.size(); i++) {
       int tid = teams_to_be_updated[i];
       int score = 0, penalty = 0;
@@ -407,7 +469,6 @@ void FlushScoreBoard(bool show_info = true, bool rebuild = true) {
       }
 #endif
       score_board.erase(value_in_score_board[tid]);
-      // team_data[tid].pass_time_before_freeze=team_data[tid].pass_time_before_freeze_new;
       for (int j : new_problems_accepted) {
         auto &pass_time_before_freeze = team_data[tid].pass_time_before_freeze;
         int p = 0;
@@ -477,7 +538,6 @@ void PrintScoreBoard() {
 }
 #ifdef DebugOn
 void CheckDataAfterScroll() {
-  // return;
   for (int i = 1; i <= team_number; i++)
     for (int j = 0; j < total_number_of_problems; j++)
       if (team_data[i].is_frozen[j]) throw "has frozen problem after scroll!";
@@ -714,8 +774,8 @@ void AddTeam(const char *const team_name) {
           team_name[i] >= 'A' && team_name[i] <= 'Z' ||
           team_name[i] >= '0' && team_name[i] <= '9' || team_name[i] == '_'))
       throw "Team name contains invalid characters.";
-#endif
   // All checks passed.
+#endif
   BackEnd::AddTeam(team_name);
 }
 inline void StartCompetition(int duration_time, int problem_count) {
@@ -870,9 +930,6 @@ inline void Excute(const char *const command) {
 }  // namespace API
 }  // namespace ICPCManager
 int main() {
-  // freopen("tmp/pro.in", "r", stdin);
-  // freopen("tmp/pro.out", "w", stdout);
-  ICPCManager::BackEnd::team_data.reserve(10005);
   char command[1024];
 #ifdef DebugOn
   try {
