@@ -440,6 +440,14 @@ inline void Submit(char problem_name, char *team_name,
     }
   }
 }
+/**
+ * @brief the definition of function Submit.
+ *
+ * @details this function will add data that should be available to user but
+ * hasn't been added to the score board to the score board. Note that the two
+ * parameters are used when the function was called by ScrollScoreBoard() to
+ * delicately control its behavior.
+ */
 void FlushScoreBoard(bool show_info = true, bool rebuild = true) {
   if (rebuild) {
     for (int i = 0; i < teams_to_be_updated.size(); i++) {
@@ -689,6 +697,7 @@ void QuerySubmission(char *team_name, char *problem_name, char *submit_status) {
   bool found = false;
   SubmissionType res;
   int tid = team_name_to_id[team_name];
+  // clang-format off
   if (strcmp(problem_name, "ALL") == 0) {
     if (strcmp(submit_status, "ALL") == 0) {
       if (team_data[tid].submissions.size() > 0) {
@@ -699,8 +708,8 @@ void QuerySubmission(char *team_name, char *problem_name, char *submit_status) {
       if (team_data[tid]
               .query_status_index[SubmitStatusParser[submit_status]] != -1) {
         res =
-            team_data[tid].submissions[team_data[tid].query_status_index
-                                           [SubmitStatusParser[submit_status]]];
+            team_data[tid].submissions
+                [team_data[tid].query_status_index[SubmitStatusParser[submit_status]]];
         found = true;
       }
     }
@@ -714,16 +723,17 @@ void QuerySubmission(char *team_name, char *problem_name, char *submit_status) {
     } else {
       if (team_data[tid]
               .query_problem_status_index[problem_name[0] - 'A']
-                                         [SubmitStatusParser[submit_status]] !=
-          -1) {
-        res =
-            team_data[tid].submissions[team_data[tid].query_problem_status_index
+                                         [SubmitStatusParser[submit_status]] != -1)
+      {
+        res = team_data[tid]
+              .submissions[team_data[tid].query_problem_status_index
                                            [problem_name[0] - 'A']
                                            [SubmitStatusParser[submit_status]]];
         found = true;
       }
     }
   }
+  // clang-format on
   if (!found) {
     write("Cannot find any submission.\n");
     return;
@@ -765,9 +775,6 @@ void CheckAccordanceBetweenScoreBoardAndValueInScoreBoard() {
  * given to the functions in BackEnd are always valid.
  */
 namespace API {
-/**
- * @brief this function is used to add a team.
- */
 void AddTeam(const char *const team_name) {
   int len = strlen(team_name);
 #ifdef DebugOn
@@ -861,12 +868,14 @@ inline void Excute(const char *const command) {
       ICPCManager::BackEnd::CommandParser[command_name];
   switch (command_type) {
     case ICPCManager::BackEnd::kADDTEAM: {
+      /*add a team*/
       char team_name[100];
       sscanf(command, "%*s%s", team_name);
       ICPCManager::API::AddTeam(team_name);
       break;
     }
     case ICPCManager::BackEnd::kSTART: {
+      /*start the contest a initialize some data*/
       int duration_time, problem_count, paramater_count;
       paramater_count =
           sscanf(command, "%*s%*s%d%*s%d", &duration_time, &problem_count);
@@ -877,6 +886,7 @@ inline void Excute(const char *const command) {
       break;
     }
     case ICPCManager::BackEnd::kSUBMIT: {
+      /*do a submission*/
       char problem_name[10];
       char team_name[100];
       char submit_status[20];
@@ -897,16 +907,19 @@ inline void Excute(const char *const command) {
       break;
     }
     case ICPCManager::BackEnd::kSCROLL: {
+      /*scroll the board*/
       ICPCManager::API::ScrollScoreBoard();
       break;
     }
     case ICPCManager::BackEnd::kQUERY_RANKING: {
+      /*query a team's rank*/
       char team_name[100];
       sscanf(command, "%*s%s", team_name);
       ICPCManager::API::QueryRanking(team_name);
       break;
     }
     case ICPCManager::BackEnd::kQUERY_SUBMISSION: {
+      /*query a team's submission*/
       char team_name[100];
       char problem_name[10];
       char status[20];
@@ -916,6 +929,7 @@ inline void Excute(const char *const command) {
       break;
     }
     case ICPCManager::BackEnd::kEND: {
+      /*stop the contest*/
       ICPCManager::API::EndContest();
       break;
     }
